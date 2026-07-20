@@ -1,6 +1,8 @@
 import errno
 import json
 import os
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import pytest
 
@@ -38,6 +40,33 @@ def test_build_bundle_writes_portable_evidence_files(tmp_path, monkeypatch):
     assert "challenge-card wording" in bundle_readme
     assert "paper reports 52 trajectories and 11,907 steps/operations" in bundle_readme
     assert "paper's claimed counts" not in bundle_readme
+
+
+def test_build_bundle_accepts_raw_macos_temporary_directory_alias(monkeypatch):
+    if cli.platform.system() != "Darwin":
+        pytest.skip("macOS root alias regression")
+
+    with TemporaryDirectory(prefix="nape-repro-alias-") as temporary_directory:
+        raw_temporary_path = Path(temporary_directory)
+        root_component = raw_temporary_path.parts[1]
+        if root_component not in {"var", "tmp"} or not (Path("/") / root_component).is_symlink():
+            pytest.skip("temporary directory does not use a standard macOS root alias")
+        output_dir = raw_temporary_path / "bundle"
+        monkeypatch.setattr(
+            cli,
+            "build_claim_1_evidence",
+            lambda: {"verdict": "falsified"},
+        )
+        monkeypatch.setattr(
+            cli,
+            "build_claim_2_evidence",
+            lambda output_dir: {"verdict": "verified"},
+        )
+
+        result = cli.build_bundle(output_dir)
+
+        assert result == output_dir
+        assert {path.name for path in output_dir.iterdir()} == set(cli.BUNDLE_ARTIFACT_NAMES)
 
 
 def test_build_bundle_rejects_symlinked_output_directory_before_evidence_work(
@@ -87,6 +116,34 @@ def test_build_bundle_rejects_symlinked_output_ancestor_before_evidence_work(tmp
 
     with pytest.raises(RuntimeError, match="output directory.*symlink"):
         cli.build_bundle(linked_ancestor / "bundle")
+
+    assert sentinel.read_text(encoding="utf-8") == "unchanged\n"
+    assert {path.name for path in external_directory.iterdir()} == {"sentinel.txt"}
+
+
+@pytest.mark.parametrize("alias_name", ["var", "tmp"])
+def test_build_bundle_rejects_user_symlink_named_like_macos_root_alias(
+    tmp_path, monkeypatch, alias_name
+):
+    external_directory = tmp_path / "external"
+    external_directory.mkdir()
+    sentinel = external_directory / "sentinel.txt"
+    sentinel.write_text("unchanged\n", encoding="utf-8")
+    user_alias = tmp_path / alias_name
+    user_alias.symlink_to(external_directory, target_is_directory=True)
+    monkeypatch.setattr(
+        cli,
+        "build_claim_1_evidence",
+        lambda: pytest.fail("claim 1 evidence builder was called"),
+    )
+    monkeypatch.setattr(
+        cli,
+        "build_claim_2_evidence",
+        lambda output_dir: pytest.fail("claim 2 evidence builder was called"),
+    )
+
+    with pytest.raises(RuntimeError, match="output directory.*symlink"):
+        cli.build_bundle(user_alias / "bundle")
 
     assert sentinel.read_text(encoding="utf-8") == "unchanged\n"
     assert {path.name for path in external_directory.iterdir()} == {"sentinel.txt"}
