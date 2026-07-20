@@ -67,9 +67,6 @@ The pre-commit file must retain the template's `check-ast`, `end-of-file-fixer`,
 Expected configuration includes:
 
 ```toml
-[project.scripts]
-nape-repro = "icml_2026_repro.cli:main"
-
 [build-system]
 requires = ["uv_build>=0.9.2"]
 build-backend = "uv_build"
@@ -347,6 +344,13 @@ Create `build_bundle` and `main` at the top of `cli.py`. Configure `logging.basi
 
 Delete the untracked `main.py` starter because the package entry point replaces it.
 
+Register the command only after `cli.py` exists:
+
+```toml
+[project.scripts]
+nape-repro = "icml_2026_repro.cli:main"
+```
+
 - [ ] **Step 4: Verify the bundle behavior and generate real evidence**
 
 Run: `uv run pytest tests/test_cli.py -q`
@@ -413,13 +417,15 @@ Use `uv run trackio logbook cell markdown` for authored prose rather than editin
 - Compute: CPU only; paid API cost: `$0.00`.
 - Limitation: this reproduces the released benchmark cardinality and evaluator mechanics, not model quality tables.
 
+Replace the scaffold's placeholder poster figure with a real `poster_embed.html` generated from the two verdicts, observed counts, pinned revisions, methods, compute, and limitations. Keep the poster self-contained and legible in the Trackio figure frame.
+
 - [ ] **Step 4: Fetch and run the official validator**
 
 Download `scripts/validate_icml_logbook.py` from the challenge Space at its current revision and run it against `.trackio`. Treat warnings about missing verdict language, source links, artifacts, or required tags as failures to fix.
 
 - [ ] **Step 5: Review the rendered logbook locally**
 
-Run `uv run trackio logbook serve --no-open` long enough to request the root page and each hash-routed page. Confirm all four pages, command cells, verdicts, and artifact link render; then stop the server.
+Run `uv run trackio logbook serve --no-browser` long enough to request the root page and each hash-routed page. Confirm all four pages, command cells, verdicts, the completed poster, and artifact link render; then stop the server.
 
 - [ ] **Step 6: Commit the validated logbook**
 
@@ -449,7 +455,7 @@ Expected: target Space, `icml2026-repro`, `paper-NvPgRwURDC`, and arXiv `2606.13
 
 - [ ] **Step 2: Publish with Trackio**
 
-Use the Trackio logbook publish command from `uv run trackio logbook --help`, targeting the configured public Space. Do not upload `.venv`, caches, or the vendored `.git` directory.
+Run `uv run trackio logbook publish wrice/repro-a-benchmark-and-framework-for-evaluating-next-action-predictions-in-spreadsheets`. Do not upload `.venv`, caches, or the vendored `.git` directory.
 
 - [ ] **Step 3: Verify runtime and logs**
 
