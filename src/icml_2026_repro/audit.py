@@ -1,8 +1,20 @@
-"""Audit released trajectory files."""
+"""Audit released trajectory files and linked dataset evidence."""
 
 import json
-from dataclasses import dataclass
+import subprocess
+from dataclasses import asdict, dataclass
 from pathlib import Path
+
+from huggingface_hub import hf_hub_download
+
+GITHUB_REPOSITORY = "Tej-55/NAPE"
+DATASET_REPOSITORY = "Tej-a55/napeval"
+GITHUB_REVISION = "ac0d10e4dc345f982a5665a2c4bdb6b752d663f2"
+DATASET_REVISION = "c7e28fe9b08ee2c0bfc429519cf100197b7e018c"
+DATASET_FILENAME = "data/test.jsonl"
+CLAIMED_TRAJECTORIES = 58
+CLAIMED_ACTIONS = 13_000
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 
 @dataclass(frozen=True)
@@ -28,8 +40,113 @@ def audit_trajectory_directory(path: Path, revision: str) -> ReleaseCounts:
             raise ValueError(f"{trajectory_path.name}: operations must be a list of strings")
         action_count += len(operations)
     return ReleaseCounts(
-        source="github:Tej-55/NAPE",
+        source=f"github:{GITHUB_REPOSITORY}",
         revision=revision,
         trajectories=len(trajectory_paths),
         actions=action_count,
     )
+
+
+def audit_jsonl(path: Path, revision: str) -> ReleaseCounts:
+    """Count rows and operations in a JSONL dataset release."""
+    action_count = 0
+    trajectory_count = 0
+    with path.open(encoding="utf-8") as dataset_file:
+        for line_number, line in enumerate(dataset_file, start=1):
+            if not line.strip():
+                raise ValueError(f"{path.name}:{line_number}: blank JSONL row")
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError as error:
+                raise ValueError(f"{path.name}:{line_number}: invalid JSON: {error.msg}") from error
+            if not isinstance(row, dict):
+                raise ValueError(f"{path.name}:{line_number}: row must be a JSON object")
+            operations = row.get("operations")
+            num_operations = row.get("num_operations")
+            if not isinstance(operations, list) or not all(
+                isinstance(operation, str) for operation in operations
+            ):
+                raise ValueError(f"{path.name}:{line_number}: operations must be a list of strings")
+            if isinstance(num_operations, bool) or not isinstance(num_operations, int):
+                raise ValueError(f"{path.name}:{line_number}: num_operations must be an integer")
+            if num_operations != len(operations):
+                raise ValueError(
+                    f"{path.name}:{line_number}: num_operations does not match operations"
+                )
+            trajectory_count += 1
+            action_count += len(operations)
+    return ReleaseCounts(
+        source=f"dataset:{DATASET_REPOSITORY}",
+        revision=revision,
+        trajectories=trajectory_count,
+        actions=action_count,
+    )
+
+
+def read_git_head(repository_path: Path) -> str:
+    """Read a checkout's exact Git HEAD or raise an explicit error."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repository_path), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise RuntimeError(f"could not read Git HEAD for {repository_path}: {error}") from error
+    return result.stdout.strip()
+
+
+def build_claim_1_evidence() -> dict[str, object]:
+    """Build pinned, cross-checked evidence for Claim 1."""
+    nape_path = REPOSITORY_ROOT / "external" / "NAPE"
+    github_head = read_git_head(nape_path)
+    if github_head != GITHUB_REVISION:
+        raise ValueError(
+            f"NAPE checkout is at {github_head}, expected pinned revision {GITHUB_REVISION}"
+        )
+
+    github_counts = audit_trajectory_directory(
+        nape_path / "data" / "trajectories", revision=GITHUB_REVISION
+    )
+    try:
+        dataset_path = hf_hub_download(
+            repo_id=DATASET_REPOSITORY,
+            filename=DATASET_FILENAME,
+            revision=DATASET_REVISION,
+            repo_type="dataset",
+        )
+    except Exception as error:
+        raise RuntimeError(
+            f"could not download {DATASET_REPOSITORY}/{DATASET_FILENAME} at "
+            f"revision {DATASET_REVISION}: {error}"
+        ) from error
+    dataset_counts = audit_jsonl(Path(dataset_path), revision=DATASET_REVISION)
+
+    if (github_counts.trajectories, github_counts.actions) != (
+        dataset_counts.trajectories,
+        dataset_counts.actions,
+    ):
+        raise ValueError(
+            "pinned GitHub and dataset counts disagree: "
+            f"{github_counts.trajectories}/{github_counts.actions} versus "
+            f"{dataset_counts.trajectories}/{dataset_counts.actions}"
+        )
+
+    observed = {
+        "trajectories": github_counts.trajectories,
+        "actions": github_counts.actions,
+    }
+    claimed = {"trajectories": CLAIMED_TRAJECTORIES, "actions": CLAIMED_ACTIONS}
+    verdict = "verified" if observed == claimed else "falsified"
+    return {
+        "claim": (
+            "Benchmark generates 58 symbolic action sequences consisting of 13K actions "
+            "from publicly available spreadsheets."
+        ),
+        "counting_definition": "Count trajectory rows/files and sum their operations arrays.",
+        "claimed": claimed,
+        "observed": observed,
+        "sources": [asdict(github_counts), asdict(dataset_counts)],
+        "verdict": verdict,
+    }
