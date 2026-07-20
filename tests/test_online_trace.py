@@ -1,5 +1,10 @@
+import subprocess
 from typing import cast
 
+import pytest
+from next_action_pred_eval.evaluation.experiment_recorder import TIMELINE_CONTEXT_SIZE
+
+from icml_2026_repro import online_trace
 from icml_2026_repro.online_trace import GROUND_TRUTH, build_claim_2_evidence
 
 EXPECTED_GROUND_TRUTH = [
@@ -59,3 +64,118 @@ def test_online_trace_future_counts_use_uncapped_timeline_lengths(tmp_path):
     assert accepted["future_before_count"] == gt_len_before - user_t
     assert accepted["future_after_count"] == gt_len_after - prediction_t
     assert accepted["future_before_count"] != accepted["future_after_count"]
+
+
+def test_online_trace_rejects_symlinked_run_directory_without_touching_target(tmp_path):
+    target = tmp_path / "target"
+    target.mkdir()
+    target_artifact = target / "timeline.jsonl"
+    target_artifact.write_text("caller data\n", encoding="utf-8")
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+    (output_dir / online_trace.RUN_DIRECTORY_NAME).symlink_to(target, target_is_directory=True)
+
+    with pytest.raises(RuntimeError, match="symlink"):
+        build_claim_2_evidence(output_dir)
+
+    assert target_artifact.read_text(encoding="utf-8") == "caller data\n"
+
+
+def test_online_trace_rejects_mismatched_nape_revision(tmp_path, monkeypatch):
+    monkeypatch.setattr(online_trace, "read_git_head", lambda _: "wrong-revision", raising=False)
+
+    with pytest.raises(RuntimeError, match="wrong-revision.*expected"):
+        build_claim_2_evidence(tmp_path)
+
+
+def test_read_git_worktree_status_reports_tracked_staged_and_untracked_changes(tmp_path):
+    repository = tmp_path / "repository"
+    subprocess.run(["git", "init", str(repository)], check=True, capture_output=True)
+    tracked = repository / "tracked.py"
+    tracked.write_text("original\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repository), "add", "tracked.py"], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repository),
+            "-c",
+            "user.name=Test User",
+            "-c",
+            "user.email=test@example.com",
+            "commit",
+            "-m",
+            "test fixture",
+        ],
+        check=True,
+        capture_output=True,
+    )
+    tracked.write_text("modified\n", encoding="utf-8")
+    (repository / "staged.py").write_text("staged\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repository), "add", "staged.py"], check=True)
+    (repository / "untracked.py").write_text("untracked\n", encoding="utf-8")
+
+    status = online_trace.read_git_worktree_status(repository)
+
+    assert " M tracked.py" in status
+    assert "A  staged.py" in status
+    assert "?? untracked.py" in status
+
+
+def test_online_trace_rejects_dirty_nape_checkout(tmp_path, monkeypatch):
+    repository_root = tmp_path / "repository-root"
+    nape_path = repository_root / "external" / "NAPE"
+    nape_path.mkdir(parents=True)
+    subprocess.run(["git", "init", str(nape_path)], check=True, capture_output=True)
+    source_path = nape_path / "src" / "dirty.py"
+    source_path.parent.mkdir()
+    source_path.write_text("dirty = True\n", encoding="utf-8")
+    monkeypatch.setattr(online_trace, "REPOSITORY_ROOT", repository_root, raising=False)
+    monkeypatch.setattr(
+        online_trace,
+        "read_git_head",
+        lambda _: online_trace.GITHUB_REVISION,
+        raising=False,
+    )
+
+    with pytest.raises(RuntimeError, match=r"dirty.*src/dirty\.py"):
+        build_claim_2_evidence(tmp_path / "output")
+
+
+def test_prediction_decision_uses_uncapped_counts_and_validates_recorder_pointers():
+    predicted_ops = ["VALUE | Sheet1!A11 | 11", "VALUE | Sheet1!A12 | 12"]
+    user_t = 10
+    future_before_count = TIMELINE_CONTEXT_SIZE + 15
+    prediction_t = user_t + len(predicted_ops)
+    user_event: dict[str, object] = {
+        "event": "user_step",
+        "t": user_t,
+        "user_step": 10,
+        "op": "VALUE | Sheet1!A10 | 10",
+        "history_len": user_t,
+        "future_len": future_before_count,
+    }
+    prediction_event: dict[str, object] = {
+        "event": "prediction",
+        "t": prediction_t,
+        "t_after": prediction_t + len(predicted_ops),
+        "user_step": 10,
+        "prediction_index": 1,
+        "history_tail": [],
+        "future_head": [f"capped-{index}" for index in range(TIMELINE_CONTEXT_SIZE)],
+        "predicted_ops": predicted_ops,
+        "accepted": True,
+        "gt_len_before": user_t + future_before_count,
+        "gt_len_after": user_t + future_before_count,
+    }
+
+    decision = online_trace._prediction_decision(prediction_event, user_event)
+
+    assert decision["future_before_count"] == future_before_count
+    assert decision["future_after_count"] == future_before_count - len(predicted_ops)
+    assert decision["future_before_count"] != len(prediction_event["future_head"])
+    for field in ("t", "t_after"):
+        invalid_event = dict(prediction_event)
+        invalid_event[field] = cast(int, invalid_event[field]) + 1
+        with pytest.raises(RuntimeError, match="pointer"):
+            online_trace._prediction_decision(invalid_event, user_event)

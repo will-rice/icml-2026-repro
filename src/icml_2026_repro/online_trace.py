@@ -1,6 +1,7 @@
 """Run a deterministic online evaluation trace with the official NAPE evaluator."""
 
 import json
+import subprocess
 from pathlib import Path
 from typing import Optional, Union, cast
 
@@ -14,7 +15,7 @@ from next_action_pred_eval.evaluation import (
 )
 from next_action_pred_eval.evaluation.stride import StrideConfig, StrideMode
 
-from icml_2026_repro.audit import GITHUB_REVISION
+from icml_2026_repro.audit import GITHUB_REVISION, REPOSITORY_ROOT, read_git_head
 
 GROUND_TRUTH = [
     "VALUE | Sheet1!A1 | 1",
@@ -98,10 +99,45 @@ def _require_timeline_int(event: dict[str, object], field: str) -> int:
     return value
 
 
+def read_git_worktree_status(repository_path: Path) -> str:
+    """Read all tracked, staged, and untracked changes in a Git worktree."""
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repository_path),
+                "status",
+                "--porcelain=v1",
+                "--untracked-files=all",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise RuntimeError(f"could not read Git status for {repository_path}: {error}") from error
+    return result.stdout.strip()
+
+
+def _verify_nape_checkout() -> None:
+    """Require the exact clean NAPE checkout used by the editable dependency."""
+    nape_path = REPOSITORY_ROOT / "external" / "NAPE"
+    revision = read_git_head(nape_path)
+    if revision != GITHUB_REVISION:
+        raise RuntimeError(f"NAPE checkout is at {revision}, expected {GITHUB_REVISION}")
+    status = read_git_worktree_status(nape_path)
+    if status:
+        changed_paths = ", ".join(status.splitlines())
+        raise RuntimeError(f"NAPE checkout is dirty: {changed_paths}")
+
+
 def _prepare_run_directory(output_dir: Path) -> Path:
     """Create the dedicated run directory and reset known recorder artifacts."""
     output_dir.mkdir(parents=True, exist_ok=True)
     run_directory = output_dir / RUN_DIRECTORY_NAME
+    if run_directory.is_symlink():
+        raise RuntimeError("claim-2 run directory must not be a symlink")
     run_directory.mkdir(parents=True, exist_ok=True)
     for artifact_name in GENERATED_RUN_ARTIFACTS:
         artifact_path = run_directory / artifact_name
@@ -118,17 +154,24 @@ def _future_counts(
     event: dict[str, object],
     user_event: dict[str, object],
     accepted: bool,
+    predicted_count: int,
 ) -> tuple[int, int, Optional[int], Optional[int]]:
     """Derive uncapped future counts from official timeline length fields."""
     user_t = _require_timeline_int(user_event, "t")
+    prediction_t = _require_timeline_int(event, "t")
     user_future_count = _require_timeline_int(user_event, "future_len")
     if not accepted:
+        if prediction_t != user_t:
+            raise RuntimeError("rejected prediction has inconsistent recorder pointer")
         return user_future_count, user_future_count, None, None
 
-    prediction_t = _require_timeline_int(event, "t")
     gt_len_before = _require_timeline_int(event, "gt_len_before")
     gt_len_after = _require_timeline_int(event, "gt_len_after")
-    _require_timeline_int(event, "t_after")
+    recorder_t_after = _require_timeline_int(event, "t_after")
+    if prediction_t != user_t + predicted_count:
+        raise RuntimeError("accepted prediction has inconsistent recorder pointer")
+    if recorder_t_after != prediction_t + predicted_count:
+        raise RuntimeError("accepted prediction has inconsistent recorder t_after pointer")
     future_before_count = gt_len_before - user_t
     future_after_count = gt_len_after - prediction_t
     if future_before_count != user_future_count:
@@ -160,7 +203,7 @@ def _prediction_decision(
     user_t = _require_timeline_int(user_event, "t")
     prediction_t = _require_timeline_int(event, "t")
     future_before_count, future_after_count, gt_len_before, gt_len_after = _future_counts(
-        event, user_event, accepted
+        event, user_event, accepted, len(predicted_ops)
     )
     return {
         "prediction_index": prediction_index,
@@ -178,6 +221,7 @@ def _prediction_decision(
 
 def build_claim_2_evidence(output_dir: Path) -> dict[str, object]:
     """Build evidence for the online evaluation transitions in Claim 2."""
+    _verify_nape_checkout()
     run_directory = _prepare_run_directory(output_dir)
     orchestrator = Orchestrator(
         solver=ScriptedSolver(SCRIPTED_RESPONSES),
