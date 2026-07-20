@@ -1,4 +1,5 @@
 import json
+import subprocess
 
 import pytest
 
@@ -53,6 +54,58 @@ def test_audit_jsonl_rejects_inconsistent_num_operations(tmp_path):
         audit_jsonl(dataset_path, revision="def456")
 
 
+@pytest.mark.parametrize(
+    "row",
+    [
+        {"operations": ["one"], "num_operations": 1},
+        {"name": 1, "operations": ["one"], "num_operations": 1},
+    ],
+)
+def test_audit_jsonl_requires_string_name(tmp_path, row):
+    dataset_path = tmp_path / "test.jsonl"
+    dataset_path.write_text(json.dumps(row), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="name must be a string"):
+        audit_jsonl(dataset_path, revision="def456")
+
+
+def test_build_claim_1_evidence_rejects_dirty_trajectory_contents(tmp_path, monkeypatch):
+    repository_root = tmp_path / "repository"
+    nape_path = repository_root / "external" / "NAPE"
+    trajectory_path = nape_path / "data" / "trajectories"
+    trajectory_path.mkdir(parents=True)
+    tracked_path = trajectory_path / "tracked.json"
+    tracked_path.write_text(json.dumps({"operations": ["one"]}), encoding="utf-8")
+    subprocess.run(["git", "init", str(nape_path)], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(nape_path), "add", str(tracked_path)], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(nape_path),
+            "-c",
+            "user.name=Test User",
+            "-c",
+            "user.email=test@example.com",
+            "commit",
+            "-m",
+            "test fixture",
+        ],
+        check=True,
+        capture_output=True,
+    )
+    tracked_path.write_text(json.dumps({"operations": ["changed"]}), encoding="utf-8")
+    (trajectory_path / "untracked.json").write_text(
+        json.dumps({"operations": ["untracked"]}), encoding="utf-8"
+    )
+
+    monkeypatch.setattr(audit_module, "REPOSITORY_ROOT", repository_root)
+    monkeypatch.setattr(audit_module, "read_git_head", lambda _: audit_module.GITHUB_REVISION)
+
+    with pytest.raises(ValueError, match="tracked.json.*untracked.json"):
+        build_claim_1_evidence()
+
+
 def test_build_claim_1_evidence_falsifies_mismatched_claim(tmp_path, monkeypatch):
     repository_root = tmp_path / "repository"
     trajectory_path = repository_root / "external" / "NAPE" / "data" / "trajectories"
@@ -80,6 +133,7 @@ def test_build_claim_1_evidence_falsifies_mismatched_claim(tmp_path, monkeypatch
 
     monkeypatch.setattr(audit_module, "REPOSITORY_ROOT", repository_root)
     monkeypatch.setattr(audit_module, "read_git_head", lambda _: audit_module.GITHUB_REVISION)
+    monkeypatch.setattr(audit_module, "read_git_trajectory_status", lambda _: "")
     monkeypatch.setattr(audit_module, "hf_hub_download", lambda **_: str(dataset_path))
 
     evidence = build_claim_1_evidence()

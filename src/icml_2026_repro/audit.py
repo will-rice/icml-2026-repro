@@ -61,8 +61,11 @@ def audit_jsonl(path: Path, revision: str) -> ReleaseCounts:
                 raise ValueError(f"{path.name}:{line_number}: invalid JSON: {error.msg}") from error
             if not isinstance(row, dict):
                 raise ValueError(f"{path.name}:{line_number}: row must be a JSON object")
+            name = row.get("name")
             operations = row.get("operations")
             num_operations = row.get("num_operations")
+            if not isinstance(name, str):
+                raise ValueError(f"{path.name}:{line_number}: name must be a string")
             if not isinstance(operations, list) or not all(
                 isinstance(operation, str) for operation in operations
             ):
@@ -97,6 +100,31 @@ def read_git_head(repository_path: Path) -> str:
     return result.stdout.strip()
 
 
+def read_git_trajectory_status(repository_path: Path) -> str:
+    """Read tracked and untracked changes under the trajectory directory."""
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repository_path),
+                "status",
+                "--porcelain=v1",
+                "--untracked-files=all",
+                "--",
+                "data/trajectories",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise RuntimeError(
+            f"could not read Git status for {repository_path}/data/trajectories: {error}"
+        ) from error
+    return result.stdout.strip()
+
+
 def build_claim_1_evidence() -> dict[str, object]:
     """Build pinned, cross-checked evidence for Claim 1."""
     nape_path = REPOSITORY_ROOT / "external" / "NAPE"
@@ -105,6 +133,10 @@ def build_claim_1_evidence() -> dict[str, object]:
         raise ValueError(
             f"NAPE checkout is at {github_head}, expected pinned revision {GITHUB_REVISION}"
         )
+    trajectory_status = read_git_trajectory_status(nape_path)
+    if trajectory_status:
+        changed_paths = ", ".join(trajectory_status.splitlines())
+        raise ValueError(f"NAPE trajectory contents are dirty: {changed_paths}")
 
     github_counts = audit_trajectory_directory(
         nape_path / "data" / "trajectories", revision=GITHUB_REVISION
