@@ -1,11 +1,17 @@
 {
-  "claim": "Benchmark generates 58 symbolic action sequences consisting of 13K actions from publicly available spreadsheets.",
+  "claim": "Challenge card: Benchmark generates 58 symbolic action sequences consisting of 13K actions from publicly available spreadsheets.",
+  "claim_source": "ICML 2026 Agent Reproducibility Challenge card",
   "claimed": {
     "actions": 13000,
     "trajectories": 58
   },
   "counting_definition": "Count trajectory rows/files and sum their operations arrays.",
+  "interpretation": "Both pinned release artifacts agree with the paper's report of 52 trajectories and 11,907 steps/operations and falsify the challenge-card wording.",
   "observed": {
+    "actions": 11907,
+    "trajectories": 52
+  },
+  "paper_reported": {
     "actions": 11907,
     "trajectories": 52
   },

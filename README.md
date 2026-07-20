@@ -1,15 +1,18 @@
 # NAPE ICML 2026 Reproduction
 
-This repository audits two claims from [A Benchmark and Framework for
-Evaluating Next Action Predictions in Spreadsheets](https://arxiv.org/abs/2606.13802).
-It packages portable evidence and reruns the official online evaluator without
+This repository audits two claims presented by the ICML 2026 Agent
+Reproducibility Challenge for [A Benchmark and Framework for Evaluating Next
+Action Predictions in Spreadsheets](https://arxiv.org/abs/2606.13802). It
+packages portable evidence and reruns the official online evaluator without
 paid model inference.
 
 ## Results
 
-- **Claim 1: falsified.** Both pinned releases contain 52 trajectories and
-  11,907 symbolic operations, not the claimed 58 trajectories and approximately
-  13,000 actions.
+- **Challenge-card Claim 1: falsified.** The challenge card says 58 trajectories
+  and 13K actions. The paper itself reports 52 trajectories and 11,907
+  steps/operations, summarized as approximately 12K in its abstract. Both
+  pinned release artifacts agree with the paper, so this audit corroborates the
+  paper and falsifies the challenge-card wording.
 - **Claim 2: verified.** The official online orchestrator predicts after user
   actions, records accepted and rejected predictions, and updates future
   operations after an accepted prediction.

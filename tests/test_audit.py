@@ -140,4 +140,10 @@ def test_build_claim_1_evidence_falsifies_mismatched_claim(tmp_path, monkeypatch
 
     assert evidence["claimed"] == {"trajectories": 58, "actions": 13000}
     assert evidence["observed"] == {"trajectories": 52, "actions": 11907}
+    assert evidence["paper_reported"] == {"trajectories": 52, "actions": 11907}
+    assert evidence["claim_source"] == "ICML 2026 Agent Reproducibility Challenge card"
+    assert evidence["interpretation"] == (
+        "Both pinned release artifacts agree with the paper's report of 52 trajectories "
+        "and 11,907 steps/operations and falsify the challenge-card wording."
+    )
     assert evidence["verdict"] == "falsified"

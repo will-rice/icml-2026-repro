@@ -14,6 +14,8 @@ DATASET_REVISION = "c7e28fe9b08ee2c0bfc429519cf100197b7e018c"
 DATASET_FILENAME = "data/test.jsonl"
 CLAIMED_TRAJECTORIES = 58
 CLAIMED_ACTIONS = 13_000
+PAPER_REPORTED_TRAJECTORIES = 52
+PAPER_REPORTED_ACTIONS = 11_907
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -170,15 +172,25 @@ def build_claim_1_evidence() -> dict[str, object]:
         "actions": github_counts.actions,
     }
     claimed = {"trajectories": CLAIMED_TRAJECTORIES, "actions": CLAIMED_ACTIONS}
+    paper_reported = {
+        "trajectories": PAPER_REPORTED_TRAJECTORIES,
+        "actions": PAPER_REPORTED_ACTIONS,
+    }
     verdict = "verified" if observed == claimed else "falsified"
     return {
         "claim": (
-            "Benchmark generates 58 symbolic action sequences consisting of 13K actions "
-            "from publicly available spreadsheets."
+            "Challenge card: Benchmark generates 58 symbolic action sequences consisting "
+            "of 13K actions from publicly available spreadsheets."
         ),
+        "claim_source": "ICML 2026 Agent Reproducibility Challenge card",
         "counting_definition": "Count trajectory rows/files and sum their operations arrays.",
         "claimed": claimed,
+        "paper_reported": paper_reported,
         "observed": observed,
         "sources": [asdict(github_counts), asdict(dataset_counts)],
+        "interpretation": (
+            "Both pinned release artifacts agree with the paper's report of 52 trajectories "
+            "and 11,907 steps/operations and falsify the challenge-card wording."
+        ),
         "verdict": verdict,
     }
