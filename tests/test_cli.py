@@ -1,4 +1,6 @@
+import errno
 import json
+import os
 
 import pytest
 
@@ -119,14 +121,45 @@ def test_build_bundle_rejects_symlinked_artifact_before_evidence_work(
     assert external_file.read_text(encoding="utf-8") == "unchanged\n"
 
 
-def test_build_bundle_rejects_artifact_replaced_by_symlink_before_write(tmp_path, monkeypatch):
+@pytest.mark.parametrize("artifact_name", cli.BUNDLE_ARTIFACT_NAMES)
+def test_build_bundle_replaces_hard_link_without_changing_external_inode(
+    tmp_path, monkeypatch, artifact_name
+):
+    output_dir = tmp_path / "bundle"
+    output_dir.mkdir()
+    external_file = tmp_path / "external.txt"
+    external_file.write_text("unchanged\n", encoding="utf-8")
+    os.link(external_file, output_dir / artifact_name)
+    claim_1 = {"verdict": "falsified"}
+    claim_2 = {"verdict": "verified"}
+    monkeypatch.setattr(cli, "build_claim_1_evidence", lambda: claim_1)
+    monkeypatch.setattr(cli, "build_claim_2_evidence", lambda output_dir: claim_2)
+
+    cli.build_bundle(output_dir)
+
+    assert external_file.read_text(encoding="utf-8") == "unchanged\n"
+    assert not external_file.samefile(output_dir / artifact_name)
+    artifact_text = (output_dir / artifact_name).read_text(encoding="utf-8")
+    if artifact_name == "claim_1_audit.json":
+        assert json.loads(artifact_text) == claim_1
+    elif artifact_name == "claim_2_trace.json":
+        assert json.loads(artifact_text) == claim_2
+    elif artifact_name == "environment.json":
+        assert json.loads(artifact_text)["schema"] == "icml-2026-repro-bundle/v1"
+    else:
+        assert artifact_text.startswith("# NAPE Reproduction Evidence\n")
+    assert {path.name for path in output_dir.iterdir()} == set(cli.BUNDLE_ARTIFACT_NAMES)
+
+
+def test_build_bundle_atomically_replaces_artifact_symlink_after_preflight(tmp_path, monkeypatch):
     output_dir = tmp_path / "bundle"
     external_file = tmp_path / "external.txt"
     external_file.write_text("unchanged\n", encoding="utf-8")
+    claim_1 = {"verdict": "falsified"}
 
     def build_claim_1_with_symlink_swap():
         (output_dir / "claim_1_audit.json").symlink_to(external_file)
-        return {"verdict": "falsified"}
+        return claim_1
 
     monkeypatch.setattr(cli, "build_claim_1_evidence", build_claim_1_with_symlink_swap)
     monkeypatch.setattr(
@@ -135,7 +168,46 @@ def test_build_bundle_rejects_artifact_replaced_by_symlink_before_write(tmp_path
         lambda output_dir: {"verdict": "verified"},
     )
 
-    with pytest.raises(RuntimeError, match="claim_1_audit.json.*symlink"):
+    result = cli.build_bundle(output_dir)
+
+    assert result == output_dir
+    assert external_file.read_text(encoding="utf-8") == "unchanged\n"
+    assert not (output_dir / "claim_1_audit.json").is_symlink()
+    assert json.loads((output_dir / "claim_1_audit.json").read_text(encoding="utf-8")) == claim_1
+    assert {path.name for path in output_dir.iterdir()} == set(cli.BUNDLE_ARTIFACT_NAMES)
+
+
+@pytest.mark.parametrize("failing_operation", ["write", "replace"])
+def test_build_bundle_removes_staging_file_after_artifact_failure(
+    tmp_path, monkeypatch, failing_operation
+):
+    output_dir = tmp_path / "bundle"
+    monkeypatch.setattr(
+        cli,
+        "build_claim_1_evidence",
+        lambda: {"verdict": "falsified"},
+    )
+    monkeypatch.setattr(
+        cli,
+        "build_claim_2_evidence",
+        lambda output_dir: {"verdict": "verified"},
+    )
+    if failing_operation == "write":
+
+        def fail_write(file_descriptor, contents):
+            del file_descriptor, contents
+            raise OSError(errno.EIO, "simulated write failure")
+
+        monkeypatch.setattr(cli.os, "write", fail_write)
+    else:
+
+        def fail_replace(source, destination, **kwargs):
+            del source, destination, kwargs
+            raise OSError(errno.EIO, "simulated replace failure")
+
+        monkeypatch.setattr(cli.os, "replace", fail_replace)
+
+    with pytest.raises(RuntimeError, match=f"could not {failing_operation} claim_1_audit.json"):
         cli.build_bundle(output_dir)
 
-    assert external_file.read_text(encoding="utf-8") == "unchanged\n"
+    assert list(output_dir.iterdir()) == []

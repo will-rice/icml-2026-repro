@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import platform
+import secrets
 import stat
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -24,6 +25,8 @@ BUNDLE_ARTIFACT_NAMES = (
     "environment.json",
     "README.md",
 )
+STAGING_FILE_PREFIX = ".nape-repro-staging-"
+STAGING_CREATE_ATTEMPTS = 10
 
 
 def main() -> None:
@@ -153,36 +156,75 @@ def _write_json(output_directory_fd: int, artifact_name: str, value: object) -> 
 
 
 def _write_artifact(output_directory_fd: int, artifact_name: str, contents: str) -> None:
-    """Write an artifact relative to a verified directory without following symlinks."""
-    artifact_flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW | os.O_CLOEXEC
+    """Atomically replace an artifact without opening its existing inode."""
+    staging_name, staging_fd = _create_staging_file(output_directory_fd, artifact_name)
     try:
-        artifact_fd = os.open(
-            artifact_name,
-            artifact_flags,
-            0o644,
-            dir_fd=output_directory_fd,
-        )
-    except OSError as error:
-        if error.errno in (errno.ELOOP, errno.ENOTDIR):
-            raise RuntimeError(f"{artifact_name} must not be a symlink") from error
-        raise RuntimeError(
-            f"could not open {artifact_name} for writing: {error.strerror or error}"
-        ) from error
-
-    try:
-        remaining = memoryview(contents.encode("utf-8"))
-        while remaining:
+        try:
+            remaining = memoryview(contents.encode("utf-8"))
+            while remaining:
+                try:
+                    bytes_written = os.write(staging_fd, remaining)
+                except OSError as error:
+                    raise RuntimeError(
+                        f"could not write {artifact_name}: {error.strerror or error}"
+                    ) from error
+                if bytes_written == 0:
+                    raise RuntimeError(f"could not write {artifact_name}: zero-byte write")
+                remaining = remaining[bytes_written:]
+        finally:
             try:
-                bytes_written = os.write(artifact_fd, remaining)
+                os.close(staging_fd)
             except OSError as error:
                 raise RuntimeError(
-                    f"could not write {artifact_name}: {error.strerror or error}"
+                    f"could not close staging file for {artifact_name}: {error.strerror or error}"
                 ) from error
-            if bytes_written == 0:
-                raise RuntimeError(f"could not write {artifact_name}: zero-byte write")
-            remaining = remaining[bytes_written:]
-    finally:
-        os.close(artifact_fd)
+
+        try:
+            os.replace(
+                staging_name,
+                artifact_name,
+                src_dir_fd=output_directory_fd,
+                dst_dir_fd=output_directory_fd,
+            )
+        except OSError as error:
+            raise RuntimeError(
+                f"could not replace {artifact_name}: {error.strerror or error}"
+            ) from error
+    except BaseException:
+        try:
+            os.unlink(staging_name, dir_fd=output_directory_fd)
+        except FileNotFoundError:
+            pass
+        except OSError as error:
+            raise RuntimeError(
+                f"could not remove staging file for {artifact_name}: {error.strerror or error}"
+            ) from error
+        raise
+
+
+def _create_staging_file(output_directory_fd: int, artifact_name: str) -> tuple[str, int]:
+    """Create a collision-resistant private staging file with bounded retries."""
+    staging_flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC
+    for _ in range(STAGING_CREATE_ATTEMPTS):
+        staging_name = f"{STAGING_FILE_PREFIX}{secrets.token_hex(16)}"
+        try:
+            staging_fd = os.open(
+                staging_name,
+                staging_flags,
+                0o644,
+                dir_fd=output_directory_fd,
+            )
+        except FileExistsError:
+            continue
+        except OSError as error:
+            raise RuntimeError(
+                f"could not create staging file for {artifact_name}: {error.strerror or error}"
+            ) from error
+        return staging_name, staging_fd
+    raise RuntimeError(
+        f"could not create staging file for {artifact_name}: "
+        f"{STAGING_CREATE_ATTEMPTS} name collisions"
+    )
 
 
 def _environment_manifest() -> dict[str, object]:
