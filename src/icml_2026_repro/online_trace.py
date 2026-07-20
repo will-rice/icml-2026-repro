@@ -19,16 +19,27 @@ from icml_2026_repro.audit import GITHUB_REVISION
 GROUND_TRUTH = [
     "VALUE | Sheet1!A1 | 1",
     "VALUE | Sheet1!A2 | 2",
-    "VALUE | Sheet1!A2 | 2",
     "VALUE | Sheet1!A3 | 3",
     "VALUE | Sheet1!A4 | 4",
+    "VALUE | Sheet1!A5 | 5",
 ]
 
 SCRIPTED_RESPONSES = [
-    [GROUND_TRUTH[1]],
-    ["VALUE | Sheet1!A4 | 999"],
+    GROUND_TRUTH[1:3],
+    ["VALUE | Sheet1!A5 | 999"],
     [],
 ]
+
+RUN_DIRECTORY_NAME = "claim-2-online-trace"
+GENERATED_RUN_ARTIFACTS = (
+    "divergence_log.jsonl",
+    "experiment_summary.json",
+    "final_trajectory.jsonl",
+    "predictions.jsonl",
+    "target_state.json",
+    "timeline.jsonl",
+    "trajectory.log",
+)
 
 
 class ScriptedSolver(ISolver):
@@ -79,14 +90,100 @@ def _read_timeline(path: Path) -> list[dict[str, object]]:
     return events
 
 
+def _require_timeline_int(event: dict[str, object], field: str) -> int:
+    """Return a required integer recorder field."""
+    value = event.get(field)
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise RuntimeError(f"timeline event has invalid {field}")
+    return value
+
+
+def _prepare_run_directory(output_dir: Path) -> Path:
+    """Create the dedicated run directory and reset known recorder artifacts."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    run_directory = output_dir / RUN_DIRECTORY_NAME
+    run_directory.mkdir(parents=True, exist_ok=True)
+    for artifact_name in GENERATED_RUN_ARTIFACTS:
+        artifact_path = run_directory / artifact_name
+        if artifact_path.is_symlink():
+            artifact_path.unlink()
+        elif artifact_path.exists():
+            if not artifact_path.is_file():
+                raise RuntimeError(f"generated artifact path is not a file: {artifact_name}")
+            artifact_path.write_text("", encoding="utf-8")
+    return run_directory
+
+
+def _future_counts(
+    event: dict[str, object],
+    user_event: dict[str, object],
+    accepted: bool,
+) -> tuple[int, int, Optional[int], Optional[int]]:
+    """Derive uncapped future counts from official timeline length fields."""
+    user_t = _require_timeline_int(user_event, "t")
+    user_future_count = _require_timeline_int(user_event, "future_len")
+    if not accepted:
+        return user_future_count, user_future_count, None, None
+
+    prediction_t = _require_timeline_int(event, "t")
+    gt_len_before = _require_timeline_int(event, "gt_len_before")
+    gt_len_after = _require_timeline_int(event, "gt_len_after")
+    _require_timeline_int(event, "t_after")
+    future_before_count = gt_len_before - user_t
+    future_after_count = gt_len_after - prediction_t
+    if future_before_count != user_future_count:
+        raise RuntimeError("accepted prediction has inconsistent future-before fields")
+    if future_before_count < 0 or future_after_count < 0:
+        raise RuntimeError("accepted prediction has negative future count")
+    return future_before_count, future_after_count, gt_len_before, gt_len_after
+
+
+def _prediction_decision(
+    event: dict[str, object], user_event: dict[str, object]
+) -> dict[str, object]:
+    """Validate one official prediction event and build its evidence record."""
+    predicted_ops = event.get("predicted_ops")
+    accepted = event.get("accepted")
+    if (
+        not isinstance(predicted_ops, list)
+        or not predicted_ops
+        or not all(isinstance(operation, str) for operation in predicted_ops)
+    ):
+        raise RuntimeError("online trace has an empty non-empty prediction transition")
+    if not isinstance(accepted, bool):
+        raise RuntimeError("online trace prediction event has an invalid schema")
+
+    prediction_index = _require_timeline_int(event, "prediction_index")
+    user_step = _require_timeline_int(event, "user_step")
+    if user_step != _require_timeline_int(user_event, "user_step"):
+        raise RuntimeError("prediction was not recorded after its user action")
+    user_t = _require_timeline_int(user_event, "t")
+    prediction_t = _require_timeline_int(event, "t")
+    future_before_count, future_after_count, gt_len_before, gt_len_after = _future_counts(
+        event, user_event, accepted
+    )
+    return {
+        "prediction_index": prediction_index,
+        "user_step": user_step,
+        "user_t": user_t,
+        "t": prediction_t,
+        "accepted": accepted,
+        "predicted_ops": cast(list[str], predicted_ops),
+        "future_before_count": future_before_count,
+        "future_after_count": future_after_count,
+        "gt_len_before": gt_len_before,
+        "gt_len_after": gt_len_after,
+    }
+
+
 def build_claim_2_evidence(output_dir: Path) -> dict[str, object]:
     """Build evidence for the online evaluation transitions in Claim 2."""
-    output_dir.mkdir(parents=True, exist_ok=True)
+    run_directory = _prepare_run_directory(output_dir)
     orchestrator = Orchestrator(
         solver=ScriptedSolver(SCRIPTED_RESPONSES),
         stride_config=StrideConfig(mode=StrideMode.FIXED_INTERVAL, interval=1),
         acceptance_heuristics=[HEURISTIC_STEPS_SAVED],
-        output_dir=output_dir,
+        output_dir=run_directory,
     )
     orchestrator.run_experiment(
         cast(list[Union[Operation, str]], GROUND_TRUTH),
@@ -94,7 +191,7 @@ def build_claim_2_evidence(output_dir: Path) -> dict[str, object]:
         online_mode=True,
     )
 
-    timeline_path = output_dir / "timeline.jsonl"
+    timeline_path = run_directory / "timeline.jsonl"
     if not timeline_path.exists():
         raise RuntimeError("official evaluator did not write timeline.jsonl")
     events = _read_timeline(timeline_path)
@@ -108,37 +205,9 @@ def build_claim_2_evidence(output_dir: Path) -> dict[str, object]:
             continue
         if event_type != "prediction":
             continue
-        if last_user_event is None or event.get("user_step") != last_user_event.get("user_step"):
+        if last_user_event is None:
             raise RuntimeError("prediction was not recorded after its user action")
-
-        predicted_ops = event.get("predicted_ops")
-        future_head = event.get("future_head")
-        accepted = event.get("accepted")
-        future_before_count = last_user_event.get("future_len")
-        if not isinstance(predicted_ops, list) or not predicted_ops:
-            raise RuntimeError("online trace has an empty non-empty prediction transition")
-        if not isinstance(future_head, list) or not isinstance(accepted, bool):
-            raise RuntimeError("online trace prediction event has an invalid schema")
-        if not isinstance(future_before_count, int):
-            raise RuntimeError("online trace user event has no future count")
-        if accepted and not all(
-            isinstance(event.get(field), int) for field in ("gt_len_before", "gt_len_after")
-        ):
-            raise RuntimeError("accepted prediction has no recorded ground-truth update")
-
-        decisions.append(
-            {
-                "prediction_index": event.get("prediction_index"),
-                "user_step": event.get("user_step"),
-                "t": event.get("t"),
-                "accepted": accepted,
-                "predicted_ops": cast(list[str], predicted_ops),
-                "future_before_count": future_before_count,
-                "future_after_count": len(future_head),
-                "gt_len_before": event.get("gt_len_before"),
-                "gt_len_after": event.get("gt_len_after"),
-            }
-        )
+        decisions.append(_prediction_decision(event, last_user_event))
 
     accepted_decisions = [decision for decision in decisions if decision["accepted"] is True]
     rejected_decisions = [decision for decision in decisions if decision["accepted"] is False]
@@ -149,12 +218,17 @@ def build_claim_2_evidence(output_dir: Path) -> dict[str, object]:
     ]
     if not accepted_decisions or not rejected_decisions:
         raise RuntimeError("online trace did not record both accepted and rejected predictions")
+    has_multi_action_acceptance = any(
+        len(cast(list[str], decision["predicted_ops"])) >= 2 for decision in accepted_decisions
+    )
+    if not has_multi_action_acceptance:
+        raise RuntimeError("online trace did not record a multi-action accepted prediction")
     if not future_updates:
         raise RuntimeError("online trace did not record an accepted future update")
 
     return {
         "source_revision": GITHUB_REVISION,
-        "fixture": GROUND_TRUTH,
+        "fixture": list(GROUND_TRUTH),
         "decisions": decisions,
         "summary": {
             "predictions": len(decisions),
