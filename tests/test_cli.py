@@ -65,6 +65,31 @@ def test_build_bundle_rejects_symlinked_output_directory_before_evidence_work(
     assert {path.name for path in external_directory.iterdir()} == {"sentinel.txt"}
 
 
+def test_build_bundle_rejects_symlinked_output_ancestor_before_evidence_work(tmp_path, monkeypatch):
+    external_directory = tmp_path / "external"
+    external_directory.mkdir()
+    sentinel = external_directory / "sentinel.txt"
+    sentinel.write_text("unchanged\n", encoding="utf-8")
+    linked_ancestor = tmp_path / "link"
+    linked_ancestor.symlink_to(external_directory, target_is_directory=True)
+    monkeypatch.setattr(
+        cli,
+        "build_claim_1_evidence",
+        lambda: pytest.fail("claim 1 evidence builder was called"),
+    )
+    monkeypatch.setattr(
+        cli,
+        "build_claim_2_evidence",
+        lambda output_dir: pytest.fail("claim 2 evidence builder was called"),
+    )
+
+    with pytest.raises(RuntimeError, match="output directory.*symlink"):
+        cli.build_bundle(linked_ancestor / "bundle")
+
+    assert sentinel.read_text(encoding="utf-8") == "unchanged\n"
+    assert {path.name for path in external_directory.iterdir()} == {"sentinel.txt"}
+
+
 @pytest.mark.parametrize(
     "artifact_name",
     ["claim_1_audit.json", "claim_2_trace.json", "environment.json", "README.md"],
@@ -89,6 +114,28 @@ def test_build_bundle_rejects_symlinked_artifact_before_evidence_work(
     )
 
     with pytest.raises(RuntimeError, match=f"{artifact_name} must not be a symlink"):
+        cli.build_bundle(output_dir)
+
+    assert external_file.read_text(encoding="utf-8") == "unchanged\n"
+
+
+def test_build_bundle_rejects_artifact_replaced_by_symlink_before_write(tmp_path, monkeypatch):
+    output_dir = tmp_path / "bundle"
+    external_file = tmp_path / "external.txt"
+    external_file.write_text("unchanged\n", encoding="utf-8")
+
+    def build_claim_1_with_symlink_swap():
+        (output_dir / "claim_1_audit.json").symlink_to(external_file)
+        return {"verdict": "falsified"}
+
+    monkeypatch.setattr(cli, "build_claim_1_evidence", build_claim_1_with_symlink_swap)
+    monkeypatch.setattr(
+        cli,
+        "build_claim_2_evidence",
+        lambda output_dir: {"verdict": "verified"},
+    )
+
+    with pytest.raises(RuntimeError, match="claim_1_audit.json.*symlink"):
         cli.build_bundle(output_dir)
 
     assert external_file.read_text(encoding="utf-8") == "unchanged\n"
