@@ -11,3 +11,8 @@ wheels/
 
 # Isolated implementation worktrees
 .worktrees/
+
+# Tool caches
+.ruff_cache/
+.pytest_cache/
+.coverage
