@@ -1,3 +1,4 @@
+import logging
 import subprocess
 from typing import cast
 
@@ -79,6 +80,50 @@ def test_online_trace_rejects_symlinked_run_directory_without_touching_target(tm
         build_claim_2_evidence(output_dir)
 
     assert target_artifact.read_text(encoding="utf-8") == "caller data\n"
+
+
+def test_online_trace_rejects_symlinked_output_directory_without_touching_target(tmp_path):
+    target = tmp_path / "target"
+    run_directory = target / online_trace.RUN_DIRECTORY_NAME
+    run_directory.mkdir(parents=True)
+    target_artifact = run_directory / "timeline.jsonl"
+    target_artifact.write_text("caller data\n", encoding="utf-8")
+    output_dir = tmp_path / "output"
+    output_dir.symlink_to(target, target_is_directory=True)
+
+    with pytest.raises(RuntimeError, match="output directory.*symlink"):
+        build_claim_2_evidence(output_dir)
+
+    assert target_artifact.read_text(encoding="utf-8") == "caller data\n"
+
+
+def test_online_trace_writes_isolated_logs_for_distinct_output_directories(tmp_path):
+    first_output = tmp_path / "first"
+    second_output = tmp_path / "second"
+
+    build_claim_2_evidence(first_output)
+    first_log = first_output / online_trace.RUN_DIRECTORY_NAME / "trajectory.log"
+    first_log_before_second_run = first_log.read_text(encoding="utf-8")
+    build_claim_2_evidence(second_output)
+    second_log = second_output / online_trace.RUN_DIRECTORY_NAME / "trajectory.log"
+
+    assert first_log.exists()
+    assert second_log.exists()
+    assert first_log.read_text(encoding="utf-8") == first_log_before_second_run
+    second_log_text = second_log.read_text(encoding="utf-8")
+    assert str(first_output) in first_log_before_second_run
+    assert str(second_output) not in first_log_before_second_run
+    assert str(second_output) in second_log_text
+    assert str(first_output) not in second_log_text
+
+
+def test_online_trace_closes_trace_logger_handlers_after_exception(tmp_path, monkeypatch):
+    monkeypatch.setattr(online_trace, "SCRIPTED_RESPONSES", [])
+
+    with pytest.raises(RuntimeError, match="responses exhausted"):
+        build_claim_2_evidence(tmp_path)
+
+    assert logging.getLogger("trajectory.claim-2-fixture").handlers == []
 
 
 def test_online_trace_rejects_mismatched_nape_revision(tmp_path, monkeypatch):

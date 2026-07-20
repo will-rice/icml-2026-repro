@@ -1,6 +1,7 @@
 """Run a deterministic online evaluation trace with the official NAPE evaluator."""
 
 import json
+import logging
 import subprocess
 from pathlib import Path
 from typing import Optional, Union, cast
@@ -32,6 +33,8 @@ SCRIPTED_RESPONSES = [
 ]
 
 RUN_DIRECTORY_NAME = "claim-2-online-trace"
+EXPERIMENT_NAME = "claim-2-fixture"
+TRACE_LOGGER_NAME = f"trajectory.{EXPERIMENT_NAME}"
 GENERATED_RUN_ARTIFACTS = (
     "divergence_log.jsonl",
     "experiment_summary.json",
@@ -134,6 +137,8 @@ def _verify_nape_checkout() -> None:
 
 def _prepare_run_directory(output_dir: Path) -> Path:
     """Create the dedicated run directory and reset known recorder artifacts."""
+    if output_dir.is_symlink():
+        raise RuntimeError("claim-2 output directory must not be a symlink")
     output_dir.mkdir(parents=True, exist_ok=True)
     run_directory = output_dir / RUN_DIRECTORY_NAME
     if run_directory.is_symlink():
@@ -148,6 +153,14 @@ def _prepare_run_directory(output_dir: Path) -> Path:
                 raise RuntimeError(f"generated artifact path is not a file: {artifact_name}")
             artifact_path.write_text("", encoding="utf-8")
     return run_directory
+
+
+def _close_trace_logger_handlers() -> None:
+    """Close handlers owned by the fixed NAPE trajectory logger."""
+    trajectory_logger = logging.getLogger(TRACE_LOGGER_NAME)
+    for handler in tuple(trajectory_logger.handlers):
+        trajectory_logger.removeHandler(handler)
+        handler.close()
 
 
 def _future_counts(
@@ -222,6 +235,7 @@ def _prediction_decision(
 def build_claim_2_evidence(output_dir: Path) -> dict[str, object]:
     """Build evidence for the online evaluation transitions in Claim 2."""
     _verify_nape_checkout()
+    _close_trace_logger_handlers()
     run_directory = _prepare_run_directory(output_dir)
     orchestrator = Orchestrator(
         solver=ScriptedSolver(SCRIPTED_RESPONSES),
@@ -229,11 +243,14 @@ def build_claim_2_evidence(output_dir: Path) -> dict[str, object]:
         acceptance_heuristics=[HEURISTIC_STEPS_SAVED],
         output_dir=run_directory,
     )
-    orchestrator.run_experiment(
-        cast(list[Union[Operation, str]], GROUND_TRUTH),
-        experiment_name="claim-2-fixture",
-        online_mode=True,
-    )
+    try:
+        orchestrator.run_experiment(
+            cast(list[Union[Operation, str]], GROUND_TRUTH),
+            experiment_name=EXPERIMENT_NAME,
+            online_mode=True,
+        )
+    finally:
+        _close_trace_logger_handlers()
 
     timeline_path = run_directory / "timeline.jsonl"
     if not timeline_path.exists():
