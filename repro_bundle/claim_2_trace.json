@@ -1,0 +1,49 @@
+{
+  "decisions": [
+    {
+      "accepted": true,
+      "future_after_count": 2,
+      "future_before_count": 4,
+      "gt_len_after": 5,
+      "gt_len_before": 5,
+      "predicted_ops": [
+        "VALUE | Sheet1!A2 | 2",
+        "VALUE | Sheet1!A3 | 3"
+      ],
+      "prediction_index": 1,
+      "t": 3,
+      "user_step": 1,
+      "user_t": 1
+    },
+    {
+      "accepted": false,
+      "future_after_count": 1,
+      "future_before_count": 1,
+      "gt_len_after": null,
+      "gt_len_before": null,
+      "predicted_ops": [
+        "VALUE | Sheet1!A5 | 999"
+      ],
+      "prediction_index": 2,
+      "t": 4,
+      "user_step": 2,
+      "user_t": 4
+    }
+  ],
+  "fixture": [
+    "VALUE | Sheet1!A1 | 1",
+    "VALUE | Sheet1!A2 | 2",
+    "VALUE | Sheet1!A3 | 3",
+    "VALUE | Sheet1!A4 | 4",
+    "VALUE | Sheet1!A5 | 5"
+  ],
+  "source_revision": "ac0d10e4dc345f982a5665a2c4bdb6b752d663f2",
+  "summary": {
+    "accepted": 1,
+    "future_was_updated": true,
+    "predictions": 2,
+    "predictions_after_user_actions": true,
+    "rejected": 1
+  },
+  "verdict": "verified"
+}

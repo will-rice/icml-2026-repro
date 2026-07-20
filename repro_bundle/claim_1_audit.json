@@ -1,0 +1,27 @@
+{
+  "claim": "Benchmark generates 58 symbolic action sequences consisting of 13K actions from publicly available spreadsheets.",
+  "claimed": {
+    "actions": 13000,
+    "trajectories": 58
+  },
+  "counting_definition": "Count trajectory rows/files and sum their operations arrays.",
+  "observed": {
+    "actions": 11907,
+    "trajectories": 52
+  },
+  "sources": [
+    {
+      "actions": 11907,
+      "revision": "ac0d10e4dc345f982a5665a2c4bdb6b752d663f2",
+      "source": "github:Tej-55/NAPE",
+      "trajectories": 52
+    },
+    {
+      "actions": 11907,
+      "revision": "c7e28fe9b08ee2c0bfc429519cf100197b7e018c",
+      "source": "dataset:Tej-a55/napeval",
+      "trajectories": 52
+    }
+  ],
+  "verdict": "falsified"
+}
