@@ -53,6 +53,12 @@ concise human-readable summary. Paths to the vendored upstream repository and
 the output directory remain repository constants because this submission has a
 single fixed target.
 
+Use `will-rice/agent-harness-template` as the structural base and the shared
+tooling conventions from `will-rice/ml-template`: `uv_build`, src layout,
+Google-style docstrings, strict Ruff rules, `ty`, pytest, the v6 pre-commit
+hooks, Apache-2.0 licensing, and the Python package CI workflow. Do not inherit
+unrelated model-training dependencies such as Torch, Lightning, or W&B.
+
 ### Tests
 
 Use functional pytest tests with minimal trajectory fixtures. Tests define the
@@ -118,6 +124,7 @@ Implementation is complete only after all of the following pass in a fresh run:
 - the full upstream NAPE test suite;
 - the deterministic evidence-generation command;
 - `uv run pre-commit run -a`;
+- `uv run ty check`;
 - the official challenge logbook validator;
 - Hugging Face Space runtime and public-page smoke checks.
 

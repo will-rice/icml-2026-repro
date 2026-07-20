@@ -6,7 +6,7 @@
 
 **Architecture:** A small `src` package audits the pinned official GitHub and Hugging Face releases and drives the official online evaluator with a deterministic scripted solver. It writes a machine-readable evidence bundle; Trackio records the commands, outputs, verdicts, and bundle in the challenge-generated static logbook.
 
-**Tech Stack:** Python 3.13, `uv`, pytest, NAPE's `next_action_pred_eval`, `huggingface_hub`, Trackio, Ruff, Black, Hugging Face Spaces.
+**Tech Stack:** Python 3.13, `uv`/`uv_build`, pytest, NAPE's `next_action_pred_eval`, `huggingface_hub`, Trackio, Ruff, ty, pre-commit, Hugging Face Spaces.
 
 ## Global Constraints
 
@@ -18,12 +18,17 @@
 - Write deterministic evidence without credentials or machine-specific absolute paths.
 - Preserve the challenge-generated Trackio layout and publish to `wrice/repro-a-benchmark-and-framework-for-evaluating-next-action-predictions-in-spreadsheets`.
 - Use test-first development for every new Python behavior.
+- Base the package structure and tooling on `will-rice/agent-harness-template` and the shared CI conventions in `will-rice/ml-template`.
+- Preserve the template conventions: `uv_build`, author `Will Rice <wrice20@gmail.com>`, Apache-2.0, Google-style docstrings, Ruff rules `C,E,F,I,W,D,N,B,PTH,ANN`, `ty`, pytest, v6 pre-commit hooks, and prettier formatting.
+- Do not add the ML template's unrelated Torch, Lightning, torchaudio, torchvision, or W&B dependencies.
 - Run `uv run pre-commit run -a`, focused tests, upstream tests, the challenge validator, and live Space smoke checks before completion.
 
 ## File Structure
 
 - `pyproject.toml`: package metadata, command entry point, pytest settings, and development dependencies.
-- `.pre-commit-config.yaml`: repository-local Ruff, Black, and pytest hooks excluding vendored/generated files.
+- `.pre-commit-config.yaml`: template-derived file hygiene, prettier, Ruff, ty, and pytest hooks.
+- `.github/workflows/python-package.yml`: template-derived Python package quality workflow.
+- `LICENSE`: Apache License 2.0 from the user's templates.
 - `src/icml_2026_repro/__init__.py`: public evidence-generation exports.
 - `src/icml_2026_repro/audit.py`: structured parsing and count comparison for the two official releases.
 - `src/icml_2026_repro/online_trace.py`: deterministic solver and official online evaluator trace.
@@ -41,7 +46,10 @@
 
 **Files:**
 - Modify: `pyproject.toml`
+- Modify: `.gitignore`
 - Create: `.pre-commit-config.yaml`
+- Create: `.github/workflows/python-package.yml`
+- Create: `LICENSE`
 - Create: `src/icml_2026_repro/__init__.py`
 - Create: `src/icml_2026_repro/audit.py`
 - Create: `tests/test_audit.py`
@@ -50,9 +58,11 @@
 - Consumes: trajectory JSON objects with `name: str` and `operations: list[str]`.
 - Produces: `ReleaseCounts(source: str, revision: str, trajectories: int, actions: int)` and `audit_trajectory_directory(path: Path, revision: str) -> ReleaseCounts`.
 
-- [ ] **Step 1: Configure the package and local checks**
+- [ ] **Step 1: Apply the user's template foundation**
 
-Update `pyproject.toml` to add a Hatchling build, the `nape-repro` entry point, `pre-commit`, and root pytest configuration. Add local pre-commit hooks that run `uv run ruff check src tests`, `uv run black --check src tests`, and `uv run pytest -q`, with `external/`, `.trackio/`, and `repro_bundle/` excluded.
+Adapt `will-rice/agent-harness-template` to this package: retain its author metadata, `uv_build`, src layout, Ruff/Google-docstring configuration, `ty`, pytest, and v6 pre-commit structure. Reuse the Apache-2.0 `LICENSE` and adapt `will-rice/ml-template/.github/workflows/python-package.yml` to Python 3.13 and current action versions. Preserve `.worktrees/` in the template-derived `.gitignore`.
+
+The pre-commit file must retain the template's `check-ast`, `end-of-file-fixer`, `trailing-whitespace`, `check-merge-conflict`, `requirements-txt-fixer`, `will-rice/prettier-pre-commit`, Ruff format, Ruff fix, ty, and pytest hooks. Scope Python hooks to `src/` and `tests/`; exclude `.trackio/`, `external/`, `repro_bundle/`, and `.superpowers/` from repository-wide formatting.
 
 Expected configuration includes:
 
@@ -61,8 +71,15 @@ Expected configuration includes:
 nape-repro = "icml_2026_repro.cli:main"
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["uv_build>=0.9.2"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = ["icml_2026_repro"]
+
+[tool.ruff.lint]
+select = ["C", "E", "F", "I", "W", "D", "N", "B", "PTH", "ANN"]
+ignore = ["D107"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -149,7 +166,7 @@ Expected: `2 passed`.
 - [ ] **Step 6: Commit the independently testable audit**
 
 ```bash
-git add .gitignore .python-version pyproject.toml uv.lock .pre-commit-config.yaml src/icml_2026_repro tests/test_audit.py
+git add .gitignore .python-version .github/workflows/python-package.yml LICENSE pyproject.toml uv.lock .pre-commit-config.yaml src/icml_2026_repro tests/test_audit.py
 git commit -m "feat: make released NAPE counts independently auditable"
 ```
 
@@ -354,6 +371,10 @@ Run: `uv run pre-commit run -a`
 
 Expected: every hook passes.
 
+Run: `uv run ty check`
+
+Expected: no type errors.
+
 - [ ] **Step 7: Commit the rerunnable bundle**
 
 ```bash
@@ -453,6 +474,7 @@ uv run pytest -q
 uv run pytest external/NAPE/tests -q
 uv run nape-repro
 uv run pre-commit run -a
+uv run ty check
 ```
 
 Then inspect `git status --short`, confirm generated evidence matches the report, and confirm the live Space still serves the same revision before reporting completion.
