@@ -16,6 +16,16 @@ REQUIRED_RAW_FILES = [
 ]
 
 
+@pytest.fixture(autouse=True)
+def pinned_clean_nape_checkout(monkeypatch):
+    monkeypatch.setattr(
+        benchmark_evidence,
+        "read_git_head",
+        lambda _: benchmark_evidence.GITHUB_REVISION,
+    )
+    monkeypatch.setattr(benchmark_evidence, "read_git_worktree_status", lambda _: "")
+
+
 def test_audit_benchmark_release_reproduces_paper_statistics():
     evidence = audit_benchmark_release(NAPE_PATH)
     artifact_audit = cast(dict[str, object], evidence["artifact_audit"])
@@ -35,11 +45,8 @@ def test_audit_benchmark_release_reproduces_paper_statistics():
     assert construction_pipeline["human_annotation"]["evidence_scope"] == (
         "release_provenance_only"
     )
-    assert evidence["source_revision"] is None
-    assert (
-        evidence["evidence_scope"]
-        == "caller_supplied_release_artifact_recomputation_and_source_audit"
-    )
+    assert evidence["source_revision"] == benchmark_evidence.GITHUB_REVISION
+    assert evidence["evidence_scope"] == "released_artifact_recomputation_and_source_audit"
     assert evidence["verdict"] == "reproduced"
 
 
@@ -141,6 +148,20 @@ def test_audit_benchmark_release_rejects_missing_raw_directory(minimal_nape_rele
 
     with pytest.raises(ValueError, match="missing data/raw directory"):
         audit_benchmark_release(minimal_nape_release)
+
+
+def test_audit_benchmark_release_rejects_mismatched_revision(monkeypatch):
+    monkeypatch.setattr(benchmark_evidence, "read_git_head", lambda _: "wrong-revision")
+
+    with pytest.raises(ValueError, match="wrong-revision.*expected"):
+        audit_benchmark_release(NAPE_PATH)
+
+
+def test_audit_benchmark_release_rejects_dirty_checkout(monkeypatch):
+    monkeypatch.setattr(benchmark_evidence, "read_git_worktree_status", lambda _: " M data/raw")
+
+    with pytest.raises(ValueError, match="checkout is dirty"):
+        audit_benchmark_release(NAPE_PATH)
 
 
 def test_build_benchmark_evidence_rejects_mismatched_revision(monkeypatch):

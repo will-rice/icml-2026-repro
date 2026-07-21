@@ -64,8 +64,19 @@ def read_trajectories(trajectory_paths: list[Path]) -> tuple[set[str], list[int]
     return trajectory_ids, sequence_lengths
 
 
+def verify_nape_checkout(nape_path: Path) -> None:
+    """Require the exact clean NAPE checkout used for benchmark evidence."""
+    revision = read_git_head(nape_path)
+    if revision != GITHUB_REVISION:
+        raise ValueError(f"NAPE checkout is at {revision}, expected {GITHUB_REVISION}")
+    status = read_git_worktree_status(nape_path)
+    if status:
+        raise ValueError(f"NAPE checkout is dirty: {', '.join(status.splitlines())}")
+
+
 def audit_benchmark_release(nape_path: Path) -> dict[str, object]:
     """Recompute NAPE release statistics and audit construction artifacts."""
+    verify_nape_checkout(nape_path)
     trajectory_paths = sorted((nape_path / "data" / "trajectories").glob("*.json"))
     if not trajectory_paths:
         raise ValueError("no trajectory JSON files found")
@@ -123,7 +134,7 @@ def audit_benchmark_release(nape_path: Path) -> dict[str, object]:
             "(mean 229, median 164), produced by symbolic sequencing, LLM refinement, and "
             "human annotation."
         ),
-        "source_revision": None,
+        "source_revision": GITHUB_REVISION,
         "input_paths": ["external/NAPE/data/trajectories", "external/NAPE/data/raw"],
         "counting_definition": (
             "One trajectory is one JSON file; one action is one string in its operations array."
@@ -148,21 +159,11 @@ def audit_benchmark_release(nape_path: Path) -> dict[str, object]:
                 "evidence_scope": "release_provenance_only",
             },
         },
-        "evidence_scope": "caller_supplied_release_artifact_recomputation_and_source_audit",
+        "evidence_scope": "released_artifact_recomputation_and_source_audit",
         "verdict": "reproduced",
     }
 
 
 def build_benchmark_evidence() -> dict[str, object]:
     """Build benchmark evidence from the exact clean pinned NAPE checkout."""
-    nape_path = REPOSITORY_ROOT / "external" / "NAPE"
-    revision = read_git_head(nape_path)
-    if revision != GITHUB_REVISION:
-        raise ValueError(f"NAPE checkout is at {revision}, expected {GITHUB_REVISION}")
-    status = read_git_worktree_status(nape_path)
-    if status:
-        raise ValueError(f"NAPE checkout is dirty: {', '.join(status.splitlines())}")
-    evidence = audit_benchmark_release(nape_path)
-    evidence["source_revision"] = GITHUB_REVISION
-    evidence["evidence_scope"] = "released_artifact_recomputation_and_source_audit"
-    return evidence
+    return audit_benchmark_release(REPOSITORY_ROOT / "external" / "NAPE")
