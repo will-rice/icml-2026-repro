@@ -33,7 +33,7 @@ def raw_fixture(tmp_path):
         "predictable_count": 2,
         "final_state_size": 4,
         "coverage_pct": 50.0,
-        "predictable_properties": {},
+        "predictable_properties": {"Sheet1": {"A1": ["value", "number_format"]}},
     }
     (trajectory_path / "predictable_state.json").write_text(
         json.dumps(predictable_state), encoding="utf-8"
@@ -67,9 +67,15 @@ def test_aggregate_predictability_rejects_missing_predictable_state(raw_fixture)
     ("change", "message"),
     [
         (lambda _: [], "JSON must be an object"),
+        (
+            lambda row: {key: value for key, value in row.items() if key != "trajectory_name"},
+            "trajectory_name must be a string",
+        ),
         (lambda row: {**row, "trajectory_name": "other"}, "trajectory_name does not match"),
         (lambda row: {**row, "predictable_count": True}, "predictable_count must be an integer"),
         (lambda row: {**row, "predictable_count": 2.0}, "predictable_count must be an integer"),
+        (lambda row: {**row, "predictable_count": -1}, "predictable_count must be within"),
+        (lambda row: {**row, "predictable_count": 5}, "predictable_count must be within"),
         (lambda row: {**row, "final_state_size": True}, "final_state_size must be an integer"),
         (lambda row: {**row, "final_state_size": 4.0}, "final_state_size must be an integer"),
         (lambda row: {**row, "final_state_size": 0}, "final_state_size must be positive"),
@@ -79,6 +85,23 @@ def test_aggregate_predictability_rejects_missing_predictable_state(raw_fixture)
         (lambda row: {**row, "coverage_pct": 101}, "coverage_pct must be within"),
         (lambda row: {**row, "coverage_pct": -1}, "coverage_pct must be within"),
         (lambda row: {**row, "coverage_pct": 51}, "coverage_pct does not match"),
+        (
+            lambda row: {**row, "predictable_count": 1, "coverage_pct": 25},
+            "does not match predictable_properties",
+        ),
+        (
+            lambda row: {**row, "predictable_properties": []},
+            "predictable_properties must be an object",
+        ),
+        (lambda row: {**row, "predictable_properties": {"Sheet1": []}}, "must be an object"),
+        (
+            lambda row: {**row, "predictable_properties": {"Sheet1": {"A1": "value"}}},
+            "must be a list of strings",
+        ),
+        (
+            lambda row: {**row, "predictable_properties": {"Sheet1": {"A1": [1]}}},
+            "must be a list of strings",
+        ),
     ],
 )
 def test_aggregate_predictability_rejects_invalid_release_rows(raw_fixture, change, message):
@@ -91,8 +114,22 @@ def test_aggregate_predictability_rejects_invalid_release_rows(raw_fixture, chan
         aggregate_predictability(raw_path)
 
 
+def test_aggregate_predictability_rejects_duplicate_trajectory_ids(raw_fixture):
+    raw_path, _, predictable_state = raw_fixture
+    duplicate_path = raw_path / "z-other"
+    duplicate_path.mkdir()
+    (duplicate_path / "predictable_state.json").write_text(
+        json.dumps(predictable_state), encoding="utf-8"
+    )
+
+    with pytest.raises(ValueError, match="duplicate trajectory_name"):
+        aggregate_predictability(raw_path)
+
+
 def test_aggregate_predictability_rejects_dirty_checkout(monkeypatch):
-    monkeypatch.setattr(predictability_evidence, "read_git_worktree_status", lambda _: " M data/raw")
+    monkeypatch.setattr(
+        predictability_evidence, "read_git_worktree_status", lambda _: " M data/raw"
+    )
 
     with pytest.raises(ValueError, match="checkout is dirty"):
         aggregate_predictability(RAW_PATH)
@@ -113,7 +150,9 @@ def test_build_predictability_evidence_rejects_mismatched_revision(monkeypatch):
 
 
 def test_build_predictability_evidence_rejects_dirty_checkout(monkeypatch):
-    monkeypatch.setattr(predictability_evidence, "read_git_worktree_status", lambda _: " M data/raw")
+    monkeypatch.setattr(
+        predictability_evidence, "read_git_worktree_status", lambda _: " M data/raw"
+    )
 
     with pytest.raises(ValueError, match="checkout is dirty"):
         build_predictability_evidence()
