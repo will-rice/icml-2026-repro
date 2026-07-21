@@ -13,7 +13,6 @@ from icml_2026_repro.future_adaptation_evidence import (
     build_future_adaptation_evidence,
 )
 
-
 TRAJECTORY_PATH = (
     Path(__file__).resolve().parents[1] / "external" / "NAPE" / "data" / "trajectories"
 )
@@ -138,9 +137,7 @@ def test_build_future_adaptation_evidence_composes_official_evidence(tmp_path, m
         build_future_adaptation_evidence,
     ],
 )
-def test_public_evidence_rejects_mismatched_nape_revision(
-    tmp_path, monkeypatch, produce_evidence
-):
+def test_public_evidence_rejects_mismatched_nape_revision(tmp_path, monkeypatch, produce_evidence):
     monkeypatch.setattr(
         future_adaptation_evidence,
         "read_git_head",
@@ -159,9 +156,7 @@ def test_public_evidence_rejects_mismatched_nape_revision(
         build_future_adaptation_evidence,
     ],
 )
-def test_public_evidence_rejects_dirty_nape_checkout(
-    tmp_path, monkeypatch, produce_evidence
-):
+def test_public_evidence_rejects_dirty_nape_checkout(tmp_path, monkeypatch, produce_evidence):
     monkeypatch.setattr(future_adaptation_evidence, "read_git_worktree_status", lambda _: " M x")
 
     with pytest.raises(RuntimeError, match="dirty"):
