@@ -7,7 +7,6 @@ import pytest
 import icml_2026_repro.benchmark_evidence as benchmark_evidence
 from icml_2026_repro.benchmark_evidence import audit_benchmark_release, build_benchmark_evidence
 
-
 NAPE_PATH = Path(__file__).resolve().parents[1] / "external" / "NAPE"
 REQUIRED_RAW_FILES = [
     "operations.txt",
@@ -35,6 +34,11 @@ def test_audit_benchmark_release_reproduces_paper_statistics():
     assert artifact_audit["required_files_per_trajectory"] == REQUIRED_RAW_FILES
     assert construction_pipeline["human_annotation"]["evidence_scope"] == (
         "release_provenance_only"
+    )
+    assert evidence["source_revision"] is None
+    assert (
+        evidence["evidence_scope"]
+        == "caller_supplied_release_artifact_recomputation_and_source_audit"
     )
     assert evidence["verdict"] == "reproduced"
 
@@ -113,6 +117,32 @@ def test_audit_benchmark_release_rejects_empty_release(minimal_nape_release):
         audit_benchmark_release(minimal_nape_release)
 
 
+def test_audit_benchmark_release_rejects_statistics_inconsistent_with_paper(
+    minimal_nape_release,
+):
+    with pytest.raises(ValueError, match="statistics do not match paper values"):
+        audit_benchmark_release(minimal_nape_release)
+
+
+@pytest.mark.parametrize("trajectory", [[], {"name": [], "operations": ["one"]}])
+def test_audit_benchmark_release_rejects_invalid_trajectory_json_roots(
+    minimal_nape_release, trajectory
+):
+    trajectory_path = minimal_nape_release / "data" / "trajectories" / "first.json"
+    trajectory_path.write_text(json.dumps(trajectory), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="trajectory JSON must be an object|name must be a string"):
+        audit_benchmark_release(minimal_nape_release)
+
+
+def test_audit_benchmark_release_rejects_missing_raw_directory(minimal_nape_release):
+    raw_path = minimal_nape_release / "data" / "raw"
+    raw_path.rename(minimal_nape_release / "data" / "raw-missing")
+
+    with pytest.raises(ValueError, match="missing data/raw directory"):
+        audit_benchmark_release(minimal_nape_release)
+
+
 def test_build_benchmark_evidence_rejects_mismatched_revision(monkeypatch):
     monkeypatch.setattr(benchmark_evidence, "read_git_head", lambda _: "wrong-revision")
 
@@ -130,3 +160,10 @@ def test_build_benchmark_evidence_rejects_dirty_checkout(monkeypatch):
 
     with pytest.raises(ValueError, match="checkout is dirty"):
         build_benchmark_evidence()
+
+
+def test_build_benchmark_evidence_records_verified_pinned_revision():
+    evidence = build_benchmark_evidence()
+
+    assert evidence["source_revision"] == benchmark_evidence.GITHUB_REVISION
+    assert evidence["evidence_scope"] == "released_artifact_recomputation_and_source_audit"
