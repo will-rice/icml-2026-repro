@@ -142,3 +142,114 @@ Output: empty, exit code 0.
 ## Concerns
 
 None.
+
+## Important Findings Follow-Up
+
+### Changes
+
+- Added top-level and release-sweep `counting_definitions`, `case_counts`, and
+  `denominators` evidence.
+- Defined eligible, executed, and skipped cases; the deterministic mutation; and
+  removal, inverse insertion, residual patch, and target-preserved numerators.
+- Defined all four mechanism denominators as executed cases and explicitly excluded
+  skipped cases.
+- Restricted skip conversion to `UnsupportedOperationError`, which is created only
+  when symbolic parsing or pre-evaluation operation application raises
+  `NotImplementedError`.
+- Added filename/stage context to downstream failures while preserving downstream
+  `NotImplementedError` as that exception type.
+
+### TDD Evidence
+
+Initial follow-up red command:
+
+```text
+uv run pytest tests/test_future_adaptation_evidence.py -q
+```
+
+Output:
+
+```text
+F...FFFFF..F......                                                       [100%]
+7 failed, 11 passed in 16.85s
+```
+
+The failures covered the missing counting contract, broad downstream skip handling,
+and missing filename context for unexpected state-building failures.
+
+The downstream propagation test was then strengthened to preserve exception type.
+
+```text
+uv run pytest tests/test_future_adaptation_evidence.py -q -k downstream_not_implemented
+```
+
+Red output:
+
+```text
+FFF                                                                      [100%]
+3 failed, 15 deselected in 0.68s
+```
+
+Green output after preserving downstream `NotImplementedError`:
+
+```text
+...                                                                      [100%]
+3 passed, 15 deselected in 0.60s
+```
+
+### Verification
+
+Required focused and upstream command:
+
+```text
+uv run pytest tests/test_future_adaptation_evidence.py tests/test_online_trace.py external/NAPE/tests/test_future_edits.py -q
+```
+
+Final output:
+
+```text
+...............................................................          [100%]
+63 passed in 17.87s
+```
+
+The first follow-up pre-commit run reformatted two files and exited 1; all other
+hooks, including `ty` and `pytest`, passed. After accepting the formatter output,
+the final command was:
+
+```text
+uv run pre-commit run -a
+```
+
+Final output:
+
+```text
+check python ast.........................................................Passed
+fix end of files.........................................................Passed
+trim trailing whitespace.................................................Passed
+check for merge conflicts................................................Passed
+fix requirements.txt.................................(no files to check)Skipped
+prettier-format..........................................................Passed
+ruff format..............................................................Passed
+ruff (legacy alias)......................................................Passed
+ty.......................................................................Passed
+pytest...................................................................Passed
+```
+
+### Follow-Up Self-Review
+
+- Confirmed the composed evidence repeats the counting contract at top level and
+  retains it inside `release_sweep`, so consumers do not need external methodology.
+- Confirmed the four reported mechanism numerators use executed trajectories as
+  their explicit denominator; release, eligible, executed, and skipped counts are
+  separately reported.
+- Confirmed malformed/short inputs still fail, explicitly unsupported symbolic
+  parsing or pre-evaluation application alone may skip, and skipped rows contribute
+  to none of the four mechanism denominators.
+- Confirmed evaluator, simulator, rebuilt-state, comparator, and target mismatch
+  failures abort the audit with trajectory context; downstream `NotImplementedError`
+  remains `NotImplementedError`.
+- Confirmed the pinned release remains `52/50/52/0/52/0` with denominators of 52.
+
+### Follow-Up Concerns
+
+None.

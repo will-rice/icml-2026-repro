@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import Any, NotRequired, TypedDict, cast
+from typing import Any, NoReturn, NotRequired, TypedDict, cast
 
 from next_action_pred_eval.core.operation import Operation
 from next_action_pred_eval.core.state import StateBuilder
@@ -31,6 +31,41 @@ RESIDUAL_PREDICTION = [
     "VALUE | Sheet1!A1 | 1",
     "VALUE | Sheet1!A1 | 2",
 ]
+COUNTING_DEFINITIONS = {
+    "eligible_case": (
+        "One structurally valid trajectory JSON file containing at least two symbolic operations."
+    ),
+    "executed_case": (
+        "An eligible case for which parsing and pre-evaluation application are supported "
+        "and the evaluator, simulator, rebuild, and final comparison complete."
+    ),
+    "skipped_case": (
+        "An eligible case is skipped only when symbolic parsing or pre-evaluation state "
+        "application explicitly raises NotImplementedError for an unsupported operation; "
+        "skipped cases are excluded from every mechanism denominator."
+    ),
+    "deterministic_mutation": (
+        "After operation 0, predict the exact operation 1 followed by VALUE on the first "
+        "operation's sheet at ZZ999 with value 987654321."
+    ),
+    "removal_case": (
+        "An executed case with at least one operation in changes['operations_removed']."
+    ),
+    "inverse_insertion_case": (
+        "An executed case with at least one operation in changes['inverse_ops_added']."
+    ),
+    "residual_patch_case": (
+        "An executed case with metadata['missing_ops_count'] greater than zero."
+    ),
+    "target_preserved_case": (
+        "An executed case whose rebuilt-versus-target comparison has zero false positives, "
+        "zero false negatives, and zero mismatches."
+    ),
+}
+
+
+class UnsupportedOperationError(RuntimeError):
+    """An explicitly unsupported operation encountered before evaluation."""
 
 
 class TrajectoryEvidence(TypedDict):
@@ -55,18 +90,16 @@ def audit_future_adaptation(trajectory_path: Path) -> dict[str, object]:
     rows: list[TrajectoryEvidence] = []
     for path in trajectory_files:
         symbolic_operations = _read_symbolic_operations(path)
+        if len(symbolic_operations) < 2:
+            raise ValueError(f"{path.name}: trajectory must contain at least two operations")
         try:
             operations = _parse_operations(symbolic_operations, path.name)
-            if len(operations) < 2:
-                raise ValueError(f"{path.name}: trajectory must contain at least two operations")
-            predicted = [
-                operations[1],
-                *symbolic_to_operations(
-                    [f"VALUE | {operations[0].cell_range.sheet}!ZZ999 | 987654321"]
-                ),
-            ]
-            rows.append(_audit_mutation(path.stem, operations, predicted))
-        except NotImplementedError as error:
+            mutation = _parse_operations(
+                [f"VALUE | {operations[0].cell_range.sheet}!ZZ999 | 987654321"],
+                path.name,
+            )
+            initial_state, target_state = _build_pre_evaluation_states(operations, path.name)
+        except UnsupportedOperationError as error:
             rows.append(
                 {
                     "name": path.stem,
@@ -78,16 +111,46 @@ def audit_future_adaptation(trajectory_path: Path) -> dict[str, object]:
                     "reason": str(error),
                 }
             )
+            continue
+        predicted = [operations[1], *mutation]
+        rows.append(
+            _audit_mutation(
+                path.stem,
+                path.name,
+                operations,
+                predicted,
+                initial_state,
+                target_state,
+            )
+        )
 
+    skipped_cases = sum(row.get("skipped") is True for row in rows)
+    executed_cases = len(rows) - skipped_cases
     summary = {
         "trajectories": len(rows),
         "removal_cases": sum(row["operations_removed"] > 0 for row in rows),
         "inverse_insertion_cases": sum(row["inverse_ops_added"] > 0 for row in rows),
         "residual_patch_cases": sum(row["missing_ops_count"] > 0 for row in rows),
         "target_preserved_cases": sum(row["target_preserved"] is True for row in rows),
-        "skipped_cases": sum(row.get("skipped") is True for row in rows),
+        "skipped_cases": skipped_cases,
     }
-    return {"trajectories": rows, "summary": summary}
+    return {
+        "counting_definitions": dict(COUNTING_DEFINITIONS),
+        "case_counts": {
+            "release_trajectories": len(trajectory_files),
+            "eligible_cases": len(rows),
+            "executed_cases": executed_cases,
+            "skipped_cases": skipped_cases,
+        },
+        "denominators": {
+            "removal_cases": executed_cases,
+            "inverse_insertion_cases": executed_cases,
+            "residual_patch_cases": executed_cases,
+            "target_preserved_cases": executed_cases,
+        },
+        "trajectories": rows,
+        "summary": summary,
+    }
 
 
 def audit_residual_patch_fixture() -> dict[str, object]:
@@ -95,7 +158,15 @@ def audit_residual_patch_fixture() -> dict[str, object]:
     _verify_nape_checkout()
     operations = _parse_operations(RESIDUAL_GROUND_TRUTH, "residual fixture")
     predicted = _parse_operations(RESIDUAL_PREDICTION, "residual fixture prediction")
-    evidence = _audit_mutation("residual_patch_fixture", operations, predicted)
+    initial_state, target_state = _build_pre_evaluation_states(operations, "residual fixture")
+    evidence = _audit_mutation(
+        "residual_patch_fixture",
+        "residual fixture",
+        operations,
+        predicted,
+        initial_state,
+        target_state,
+    )
     if evidence["missing_ops_count"] != 1:
         raise RuntimeError("residual fixture did not synthesize exactly one missing operation")
     return {
@@ -124,6 +195,9 @@ def build_future_adaptation_evidence(output_dir: Path) -> dict[str, object]:
         ),
         "source_revision": GITHUB_REVISION,
         "input_path": "external/NAPE/data/trajectories/*.json",
+        "counting_definitions": release_evidence["counting_definitions"],
+        "case_counts": release_evidence["case_counts"],
+        "denominators": release_evidence["denominators"],
         "release_sweep": release_evidence,
         "residual_patch_fixture": residual_evidence,
         "orchestrator_trace": trace_evidence,
@@ -162,43 +236,94 @@ def _read_symbolic_operations(path: Path) -> list[str]:
 
 def _parse_operations(symbolic_operations: list[str], source_name: str) -> list[Operation]:
     """Parse every symbolic operation or reject a partially parsed sequence."""
-    operations = symbolic_to_operations(symbolic_operations)
+    try:
+        operations = symbolic_to_operations(symbolic_operations)
+    except NotImplementedError as error:
+        raise UnsupportedOperationError(
+            f"{source_name}: unsupported operation during symbolic parsing: {error}"
+        ) from error
     if len(operations) != len(symbolic_operations):
         raise ValueError(f"{source_name}: one or more operations could not be parsed")
     return operations
 
 
+def _build_pre_evaluation_states(
+    operations: list[Operation], source_name: str
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Build cached states while identifying only explicit unsupported application."""
+    try:
+        initial_builder = StateBuilder()
+        target_builder = StateBuilder()
+    except Exception as error:
+        _raise_execution_error(
+            source_name,
+            "pre-evaluation state builder initialization",
+            error,
+        )
+    try:
+        initial_state = initial_builder.apply_operations(operations[:1])
+        target_state = target_builder.apply_operations(operations)
+    except NotImplementedError as error:
+        raise UnsupportedOperationError(
+            f"{source_name}: unsupported operation during pre-evaluation state application: {error}"
+        ) from error
+    except Exception as error:
+        _raise_execution_error(source_name, "pre-evaluation state application", error)
+    return initial_state, target_state
+
+
+def _raise_execution_error(source_name: str, stage: str, error: Exception) -> NoReturn:
+    """Add trajectory context while preserving downstream unsupported failures."""
+    message = f"{source_name}: {stage} failed: {error}"
+    if isinstance(error, NotImplementedError):
+        raise NotImplementedError(message) from error
+    raise RuntimeError(message) from error
+
+
 def _audit_mutation(
     name: str,
+    source_name: str,
     operations: list[Operation],
     predicted: list[Operation],
+    initial_state: dict[str, Any],
+    target_state: dict[str, Any],
 ) -> TrajectoryEvidence:
     """Run one official evaluator/simulator mutation and verify its target."""
-    initial_state = StateBuilder().apply_operations(operations[:1])
-    target_state = StateBuilder().apply_operations(operations)
-    evaluation = StepEvaluator().evaluate(
-        ground_truth_operations=cast(list[Operation | str], operations[1:3]),
-        predicted_operations=cast(list[Operation | str], predicted),
-        all_future_operations=cast(list[Operation | str], operations[1:]),
-        initial_state_cache=initial_state,
-        lookahead_state_cache=target_state,
-        skip_ops_diff=True,
-    )
-    rebuilt_operations, changes = FutureEditsManager().simulate_future_edits(
-        current_gt=operations,
-        start_idx=1,
-        end_idx=1,
-        predicted_ops=predicted,
-        eval_result=evaluation,
-        initial_state=initial_state,
-        final_target_state=target_state,
-    )
-    rebuilt_state = StateBuilder().apply_operations(rebuilt_operations)
-    comparison = StateComparator(ignore_defaults=True).compare(
-        rebuilt_state,
-        target_state,
-        skip_ops_diff=True,
-    )
+    try:
+        evaluation = StepEvaluator().evaluate(
+            ground_truth_operations=cast(list[Operation | str], operations[1:3]),
+            predicted_operations=cast(list[Operation | str], predicted),
+            all_future_operations=cast(list[Operation | str], operations[1:]),
+            initial_state_cache=initial_state,
+            lookahead_state_cache=target_state,
+            skip_ops_diff=True,
+        )
+    except Exception as error:
+        _raise_execution_error(source_name, "evaluator", error)
+    try:
+        rebuilt_operations, changes = FutureEditsManager().simulate_future_edits(
+            current_gt=operations,
+            start_idx=1,
+            end_idx=1,
+            predicted_ops=predicted,
+            eval_result=evaluation,
+            initial_state=initial_state,
+            final_target_state=target_state,
+        )
+    except Exception as error:
+        _raise_execution_error(source_name, "simulator", error)
+    try:
+        rebuilt_state = StateBuilder().apply_operations(rebuilt_operations)
+    except Exception as error:
+        _raise_execution_error(source_name, "rebuilt state", error)
+    try:
+        comparison = StateComparator(ignore_defaults=True).compare(
+            rebuilt_state,
+            target_state,
+            skip_ops_diff=True,
+        )
+    except Exception as error:
+        _raise_execution_error(source_name, "comparator", error)
     target_preserved = (
         comparison.false_positives == 0
         and comparison.false_negatives == 0
@@ -206,7 +331,7 @@ def _audit_mutation(
     )
     if not target_preserved:
         raise RuntimeError(
-            f"{name}: rebuilt sequence did not preserve the target state "
+            f"{source_name}: rebuilt sequence did not preserve the target state "
             f"(FP={comparison.false_positives}, FN={comparison.false_negatives}, "
             f"mismatches={comparison.mismatches})"
         )

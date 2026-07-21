@@ -16,6 +16,37 @@ from icml_2026_repro.future_adaptation_evidence import (
 TRAJECTORY_PATH = (
     Path(__file__).resolve().parents[1] / "external" / "NAPE" / "data" / "trajectories"
 )
+EXPECTED_COUNTING_DEFINITIONS = {
+    "eligible_case": (
+        "One structurally valid trajectory JSON file containing at least two symbolic operations."
+    ),
+    "executed_case": (
+        "An eligible case for which parsing and pre-evaluation application are supported "
+        "and the evaluator, simulator, rebuild, and final comparison complete."
+    ),
+    "skipped_case": (
+        "An eligible case is skipped only when symbolic parsing or pre-evaluation state "
+        "application explicitly raises NotImplementedError for an unsupported operation; "
+        "skipped cases are excluded from every mechanism denominator."
+    ),
+    "deterministic_mutation": (
+        "After operation 0, predict the exact operation 1 followed by VALUE on the first "
+        "operation's sheet at ZZ999 with value 987654321."
+    ),
+    "removal_case": (
+        "An executed case with at least one operation in changes['operations_removed']."
+    ),
+    "inverse_insertion_case": (
+        "An executed case with at least one operation in changes['inverse_ops_added']."
+    ),
+    "residual_patch_case": (
+        "An executed case with metadata['missing_ops_count'] greater than zero."
+    ),
+    "target_preserved_case": (
+        "An executed case whose rebuilt-versus-target comparison has zero false positives, "
+        "zero false negatives, and zero mismatches."
+    ),
+}
 
 
 def test_audit_future_adaptation_preserves_all_release_targets():
@@ -28,6 +59,19 @@ def test_audit_future_adaptation_preserves_all_release_targets():
         "residual_patch_cases": 0,
         "target_preserved_cases": 52,
         "skipped_cases": 0,
+    }
+    assert evidence["counting_definitions"] == EXPECTED_COUNTING_DEFINITIONS
+    assert evidence["case_counts"] == {
+        "release_trajectories": 52,
+        "eligible_cases": 52,
+        "executed_cases": 52,
+        "skipped_cases": 0,
+    }
+    assert evidence["denominators"] == {
+        "removal_cases": 52,
+        "inverse_insertion_cases": 52,
+        "residual_patch_cases": 52,
+        "target_preserved_cases": 52,
     }
     trajectories = cast(list[dict[str, object]], evidence["trajectories"])
     assert all(row["target_preserved"] for row in trajectories)
@@ -73,6 +117,139 @@ def test_audit_future_adaptation_rejects_empty_release(tmp_path):
         audit_future_adaptation(tmp_path)
 
 
+def test_audit_future_adaptation_skips_only_unsupported_pre_evaluation_application(
+    tmp_path, monkeypatch
+):
+    trajectory_path = tmp_path / "unsupported.json"
+    trajectory_path.write_text(
+        json.dumps(
+            {
+                "operations": [
+                    "VALUE | Sheet1!A1 | 1",
+                    "VALUE | Sheet1!A2 | 2",
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class UnsupportedStateBuilder:
+        def apply_operations(self, operations):
+            del operations
+            raise NotImplementedError("unsupported operation application")
+
+    monkeypatch.setattr(future_adaptation_evidence, "StateBuilder", UnsupportedStateBuilder)
+
+    evidence = audit_future_adaptation(tmp_path)
+
+    assert evidence["case_counts"] == {
+        "release_trajectories": 1,
+        "eligible_cases": 1,
+        "executed_cases": 0,
+        "skipped_cases": 1,
+    }
+    assert evidence["denominators"] == {
+        "removal_cases": 0,
+        "inverse_insertion_cases": 0,
+        "residual_patch_cases": 0,
+        "target_preserved_cases": 0,
+    }
+    trajectories = cast(list[dict[str, object]], evidence["trajectories"])
+    assert trajectories == [
+        {
+            "name": "unsupported",
+            "operations_removed": 0,
+            "inverse_ops_added": 0,
+            "missing_ops_count": 0,
+            "target_preserved": False,
+            "skipped": True,
+            "reason": (
+                "unsupported.json: unsupported operation during pre-evaluation state "
+                "application: unsupported operation application"
+            ),
+        }
+    ]
+
+
+@pytest.mark.parametrize("stage", ["evaluator", "simulator", "comparator"])
+def test_downstream_not_implemented_error_propagates_with_filename(tmp_path, monkeypatch, stage):
+    trajectory_path = tmp_path / "downstream.json"
+    trajectory_path.write_text(
+        json.dumps(
+            {
+                "operations": [
+                    "VALUE | Sheet1!A1 | 1",
+                    "VALUE | Sheet1!A2 | 2",
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    if stage == "evaluator":
+
+        class FailingEvaluator:
+            def evaluate(self, **kwargs):
+                del kwargs
+                raise NotImplementedError("evaluator failure")
+
+        monkeypatch.setattr(future_adaptation_evidence, "StepEvaluator", FailingEvaluator)
+    elif stage == "simulator":
+
+        class FailingManager:
+            def simulate_future_edits(self, **kwargs):
+                del kwargs
+                raise NotImplementedError("simulator failure")
+
+        monkeypatch.setattr(future_adaptation_evidence, "FutureEditsManager", FailingManager)
+    else:
+
+        class FailingComparator:
+            def __init__(self, ignore_defaults):
+                assert ignore_defaults is True
+
+            def compare(self, predicted_state, true_state, skip_ops_diff):
+                del predicted_state, true_state, skip_ops_diff
+                raise NotImplementedError("comparator failure")
+
+        monkeypatch.setattr(future_adaptation_evidence, "StateComparator", FailingComparator)
+
+    with pytest.raises(NotImplementedError, match=rf"downstream\.json: {stage} failed") as error:
+        audit_future_adaptation(tmp_path)
+
+    assert isinstance(error.value.__cause__, NotImplementedError)
+
+
+def test_unexpected_pre_evaluation_state_failure_propagates_with_filename(tmp_path, monkeypatch):
+    trajectory_path = tmp_path / "state-failure.json"
+    trajectory_path.write_text(
+        json.dumps(
+            {
+                "operations": [
+                    "VALUE | Sheet1!A1 | 1",
+                    "VALUE | Sheet1!A2 | 2",
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class FailingStateBuilder:
+        def apply_operations(self, operations):
+            del operations
+            raise RuntimeError("state builder failure")
+
+    monkeypatch.setattr(future_adaptation_evidence, "StateBuilder", FailingStateBuilder)
+
+    with pytest.raises(
+        RuntimeError,
+        match=r"state-failure\.json: pre-evaluation state application failed",
+    ) as error:
+        audit_future_adaptation(tmp_path)
+
+    assert isinstance(error.value.__cause__, RuntimeError)
+
+
 def test_audit_future_adaptation_raises_when_final_state_is_unequal(monkeypatch):
     class UnequalComparator:
         def __init__(self, ignore_defaults):
@@ -94,7 +271,24 @@ def test_audit_future_adaptation_is_deterministic():
 
 
 def test_build_future_adaptation_evidence_composes_official_evidence(tmp_path, monkeypatch):
-    release_evidence = {"summary": {"trajectories": 52}}
+    case_counts = {
+        "release_trajectories": 52,
+        "eligible_cases": 52,
+        "executed_cases": 52,
+        "skipped_cases": 0,
+    }
+    denominators = {
+        "removal_cases": 52,
+        "inverse_insertion_cases": 52,
+        "residual_patch_cases": 52,
+        "target_preserved_cases": 52,
+    }
+    release_evidence = {
+        "summary": {"trajectories": 52},
+        "counting_definitions": EXPECTED_COUNTING_DEFINITIONS,
+        "case_counts": case_counts,
+        "denominators": denominators,
+    }
     residual_evidence = {"missing_ops_count": 1}
     trace_evidence = {"summary": {"accepted": 1, "rejected": 1}}
     monkeypatch.setattr(
@@ -121,6 +315,9 @@ def test_build_future_adaptation_evidence_composes_official_evidence(tmp_path, m
         ),
         "source_revision": GITHUB_REVISION,
         "input_path": "external/NAPE/data/trajectories/*.json",
+        "counting_definitions": EXPECTED_COUNTING_DEFINITIONS,
+        "case_counts": case_counts,
+        "denominators": denominators,
         "release_sweep": release_evidence,
         "residual_patch_fixture": residual_evidence,
         "orchestrator_trace": trace_evidence,
