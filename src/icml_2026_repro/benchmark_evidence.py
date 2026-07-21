@@ -1,0 +1,131 @@
+"""Recompute benchmark and construction evidence from the NAPE release."""
+
+import json
+import statistics
+from pathlib import Path
+
+from icml_2026_repro.audit import (
+    GITHUB_REPOSITORY,
+    GITHUB_REVISION,
+    REPOSITORY_ROOT,
+    read_git_head,
+    read_git_worktree_status,
+)
+
+PAPER_TRAJECTORIES = 52
+PAPER_OPERATIONS = 11_907
+PAPER_MINIMUM_SEQUENCE_LENGTH = 35
+PAPER_MAXIMUM_SEQUENCE_LENGTH = 821
+PAPER_ROUNDED_MEAN_SEQUENCE_LENGTH = 229
+PAPER_MEDIAN_SEQUENCE_LENGTH = 164
+REQUIRED_RAW_FILENAMES = (
+    "operations.txt",
+    "predictable_state.json",
+    "sheet_image.png",
+    "spreadsheet.xlsx",
+)
+PIPELINE_SOURCES = {
+    "symbolic_sequencing": "src/next_action_pred_eval/generation/sequencing/engine.py",
+    "region_annotation": "src/next_action_pred_eval/generation/regions/analyzer.py",
+    "llm_refinement": "src/next_action_pred_eval/generation/refinement/pipeline.py",
+}
+
+
+def audit_benchmark_release(nape_path: Path) -> dict[str, object]:
+    """Recompute NAPE release statistics and audit construction artifacts."""
+    trajectory_paths = sorted((nape_path / "data" / "trajectories").glob("*.json"))
+    if not trajectory_paths:
+        raise ValueError("no trajectory JSON files found")
+
+    trajectory_ids: set[str] = set()
+    sequence_lengths: list[int] = []
+    for trajectory_path in trajectory_paths:
+        trajectory = json.loads(trajectory_path.read_text(encoding="utf-8"))
+        name = trajectory.get("name")
+        if name in trajectory_ids:
+            raise ValueError(f"duplicate trajectory name: {name}")
+        if name != trajectory_path.stem:
+            raise ValueError(f"filename/name mismatch: {trajectory_path.name}")
+        operations = trajectory.get("operations")
+        if not isinstance(operations, list) or not operations or not all(
+            isinstance(operation, str) for operation in operations
+        ):
+            raise ValueError(
+                f"{trajectory_path.name}: operations must be a non-empty list of strings"
+            )
+        trajectory_ids.add(name)
+        sequence_lengths.append(len(operations))
+
+    raw_path = nape_path / "data" / "raw"
+    raw_ids = {path.name for path in raw_path.iterdir() if path.is_dir()}
+    if trajectory_ids != raw_ids:
+        raise ValueError("trajectory/raw ID sets differ")
+    for trajectory_id in trajectory_ids:
+        missing_files = [
+            filename for filename in REQUIRED_RAW_FILENAMES if not (raw_path / trajectory_id / filename).is_file()
+        ]
+        if missing_files:
+            raise ValueError(
+                f"missing required raw files for {trajectory_id}: {', '.join(missing_files)}"
+            )
+    for source_path in PIPELINE_SOURCES.values():
+        if not (nape_path / source_path).is_file():
+            raise ValueError(f"missing pipeline source: {source_path}")
+
+    observed = {
+        "trajectories": len(sequence_lengths),
+        "operations": sum(sequence_lengths),
+        "minimum_sequence_length": min(sequence_lengths),
+        "maximum_sequence_length": max(sequence_lengths),
+        "mean_sequence_length": statistics.mean(sequence_lengths),
+        "paper_rounded_mean": PAPER_ROUNDED_MEAN_SEQUENCE_LENGTH,
+        "median_sequence_length": statistics.median(sequence_lengths),
+    }
+    artifact_audit = {
+        "matched_trajectory_ids": len(trajectory_ids),
+        "required_files_per_trajectory": list(REQUIRED_RAW_FILENAMES),
+    }
+    return {
+        "claim": (
+            "NAPE contains 52 trajectories and 11,907 actions with sequence lengths 35-821 "
+            "(mean 229, median 164), produced by symbolic sequencing, LLM refinement, and "
+            "human annotation."
+        ),
+        "source_revision": GITHUB_REVISION,
+        "input_paths": ["external/NAPE/data/trajectories", "external/NAPE/data/raw"],
+        "counting_definition": "One trajectory is one JSON file; one action is one string in its operations array.",
+        "observed": observed,
+        "artifact_audit": artifact_audit,
+        "construction_pipeline": {
+            "symbolic_sequencing": {
+                "source_path": PIPELINE_SOURCES["symbolic_sequencing"],
+                "evidence_scope": "executable_source",
+            },
+            "region_annotation": {
+                "source_path": PIPELINE_SOURCES["region_annotation"],
+                "evidence_scope": "executable_source",
+            },
+            "llm_refinement": {
+                "source_path": PIPELINE_SOURCES["llm_refinement"],
+                "evidence_scope": "executable_source",
+            },
+            "human_annotation": {
+                "source_path": None,
+                "evidence_scope": "release_provenance_only",
+            },
+        },
+        "evidence_scope": "released_artifact_recomputation_and_source_audit",
+        "verdict": "reproduced",
+    }
+
+
+def build_benchmark_evidence() -> dict[str, object]:
+    """Build benchmark evidence from the exact clean pinned NAPE checkout."""
+    nape_path = REPOSITORY_ROOT / "external" / "NAPE"
+    revision = read_git_head(nape_path)
+    if revision != GITHUB_REVISION:
+        raise ValueError(f"NAPE checkout is at {revision}, expected {GITHUB_REVISION}")
+    status = read_git_worktree_status(nape_path)
+    if status:
+        raise ValueError(f"NAPE checkout is dirty: {', '.join(status.splitlines())}")
+    return audit_benchmark_release(nape_path)

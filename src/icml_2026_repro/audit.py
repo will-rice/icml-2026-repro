@@ -102,6 +102,27 @@ def read_git_head(repository_path: Path) -> str:
     return result.stdout.strip()
 
 
+def read_git_worktree_status(repository_path: Path) -> str:
+    """Read all tracked, staged, and untracked changes in a Git worktree."""
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repository_path),
+                "status",
+                "--porcelain=v1",
+                "--untracked-files=all",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise RuntimeError(f"could not read Git status for {repository_path}: {error}") from error
+    return result.stdout.strip()
+
+
 def read_git_trajectory_status(repository_path: Path) -> str:
     """Read tracked and untracked changes under the trajectory directory."""
     try:
