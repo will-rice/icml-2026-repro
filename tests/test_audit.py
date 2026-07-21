@@ -4,7 +4,11 @@ import subprocess
 import pytest
 
 from icml_2026_repro import audit as audit_module
-from icml_2026_repro.audit import audit_jsonl, audit_trajectory_directory, build_claim_1_evidence
+from icml_2026_repro.audit import (
+    audit_jsonl,
+    audit_trajectory_directory,
+    build_challenge_card_claim_1_audit,
+)
 
 
 def test_audit_trajectory_directory_counts_files_and_operations(tmp_path):
@@ -69,7 +73,7 @@ def test_audit_jsonl_requires_string_name(tmp_path, row):
         audit_jsonl(dataset_path, revision="def456")
 
 
-def test_build_claim_1_evidence_rejects_dirty_trajectory_contents(tmp_path, monkeypatch):
+def test_challenge_card_claim_1_audit_rejects_dirty_trajectory_contents(tmp_path, monkeypatch):
     repository_root = tmp_path / "repository"
     nape_path = repository_root / "external" / "NAPE"
     trajectory_path = nape_path / "data" / "trajectories"
@@ -103,10 +107,10 @@ def test_build_claim_1_evidence_rejects_dirty_trajectory_contents(tmp_path, monk
     monkeypatch.setattr(audit_module, "read_git_head", lambda _: audit_module.GITHUB_REVISION)
 
     with pytest.raises(ValueError, match="tracked.json.*untracked.json"):
-        build_claim_1_evidence()
+        build_challenge_card_claim_1_audit()
 
 
-def test_build_claim_1_evidence_falsifies_mismatched_claim(tmp_path, monkeypatch):
+def test_challenge_card_claim_1_audit_falsifies_mismatched_claim(tmp_path, monkeypatch):
     repository_root = tmp_path / "repository"
     trajectory_path = repository_root / "external" / "NAPE" / "data" / "trajectories"
     trajectory_path.mkdir(parents=True)
@@ -136,7 +140,7 @@ def test_build_claim_1_evidence_falsifies_mismatched_claim(tmp_path, monkeypatch
     monkeypatch.setattr(audit_module, "read_git_trajectory_status", lambda _: "")
     monkeypatch.setattr(audit_module, "hf_hub_download", lambda **_: str(dataset_path))
 
-    evidence = build_claim_1_evidence()
+    evidence = build_challenge_card_claim_1_audit()
 
     assert evidence["claimed"] == {"trajectories": 58, "actions": 13000}
     assert evidence["observed"] == {"trajectories": 52, "actions": 11907}
