@@ -71,7 +71,7 @@ For the ICML 2026 Agent Reproducibility Challenge, download the current
 `scripts/validate_icml_logbook.py` from the target Space and run:
 
 ```bash
-uv run python scripts/validate_icml_logbook.py .trackio
+uv run python scripts/validate_icml_logbook.py
 ```
 
 The target Space is [`wrice/repro-a-benchmark-and-framework-for-evaluating-next-action-predictions-in-spreadsheets`](https://huggingface.co/spaces/wrice/repro-a-benchmark-and-framework-for-evaluating-next-action-predictions-in-spreadsheets).
