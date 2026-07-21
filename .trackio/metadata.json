@@ -12,5 +12,9 @@
   },
   "local_artifacts": [
     "repro-a-benchmark-and-framework-for-evaluating-next-action-predictions-in-spreadsheets/repro-bundle:v0"
-  ]
+  ],
+  "autosync": true,
+  "private": false,
+  "local_dashboards": {},
+  "artifacts_bucket": "wrice/repro-a-benchmark-and-framework-for-evaluating-next-action-predictions-in-spreadsheets-artifacts"
 }
