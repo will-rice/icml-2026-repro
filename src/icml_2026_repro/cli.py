@@ -28,6 +28,10 @@ BUNDLE_ARTIFACT_NAMES = (
     "environment.json",
     "README.md",
 )
+LEGACY_ARTIFACT_NAMES = (
+    "claim_1_audit.json",
+    "claim_2_trace.json",
+)
 STAGING_FILE_PREFIX = ".nape-repro-staging-"
 STAGING_CREATE_ATTEMPTS = 10
 DARWIN_ROOT_ALIASES = {
@@ -47,7 +51,7 @@ def build_bundle(output_dir: Path = Path("repro_bundle")) -> Path:
     """Build portable JSON evidence and operator documentation."""
     output_directory_fd = _open_output_directory(output_dir)
     try:
-        _validate_artifact_destinations(output_directory_fd)
+        legacy_artifact_names = _validate_artifact_destinations(output_directory_fd)
         claim_1 = build_benchmark_evidence()
         claim_2 = build_predictability_evidence()
         with TemporaryDirectory(prefix="nape-repro-internal-") as recorder_directory:
@@ -59,6 +63,7 @@ def build_bundle(output_dir: Path = Path("repro_bundle")) -> Path:
         _write_json(output_directory_fd, "claims_4_6_status.json", _unreplicated_model_claims())
         _write_json(output_directory_fd, "environment.json", _environment_manifest())
         _write_artifact(output_directory_fd, "README.md", _bundle_readme())
+        _remove_legacy_artifacts(output_directory_fd, legacy_artifact_names)
     finally:
         os.close(output_directory_fd)
     return output_dir
@@ -184,9 +189,22 @@ def _open_output_directory_component(
         ) from error
 
 
-def _validate_artifact_destinations(output_directory_fd: int) -> None:
-    """Reject pre-existing artifact symlinks before evidence generation."""
-    for artifact_name in BUNDLE_ARTIFACT_NAMES:
+def _validate_artifact_destinations(output_directory_fd: int) -> tuple[str, ...]:
+    """Validate the complete reused-directory inventory before generation."""
+    try:
+        directory_entries = set(os.listdir(output_directory_fd))
+    except OSError as error:
+        raise RuntimeError(
+            f"could not inspect output directory: {error.strerror or error}"
+        ) from error
+
+    expected_entries = set(BUNDLE_ARTIFACT_NAMES) | set(LEGACY_ARTIFACT_NAMES)
+    unexpected_entries = sorted(directory_entries - expected_entries)
+    if unexpected_entries:
+        raise RuntimeError(f"unexpected output directory entry: {unexpected_entries[0]}")
+
+    legacy_artifact_names: list[str] = []
+    for artifact_name in sorted(directory_entries):
         try:
             artifact_stat = os.stat(
                 artifact_name,
@@ -199,8 +217,44 @@ def _validate_artifact_destinations(output_directory_fd: int) -> None:
             raise RuntimeError(
                 f"could not inspect {artifact_name}: {error.strerror or error}"
             ) from error
-        if stat.S_ISLNK(artifact_stat.st_mode):
+        if artifact_name in LEGACY_ARTIFACT_NAMES:
+            if not stat.S_ISREG(artifact_stat.st_mode):
+                raise RuntimeError(f"{artifact_name} must be a regular file")
+            legacy_artifact_names.append(artifact_name)
+        elif stat.S_ISLNK(artifact_stat.st_mode):
             raise RuntimeError(f"{artifact_name} must not be a symlink")
+    return tuple(legacy_artifact_names)
+
+
+def _remove_legacy_artifacts(
+    output_directory_fd: int, legacy_artifact_names: tuple[str, ...]
+) -> None:
+    """Remove validated legacy files after all replacement artifacts succeed."""
+    for artifact_name in legacy_artifact_names:
+        try:
+            artifact_stat = os.stat(
+                artifact_name,
+                dir_fd=output_directory_fd,
+                follow_symlinks=False,
+            )
+        except FileNotFoundError:
+            continue
+        except OSError as error:
+            raise RuntimeError(
+                f"could not inspect {artifact_name}: {error.strerror or error}"
+            ) from error
+        if not stat.S_ISREG(artifact_stat.st_mode):
+            raise RuntimeError(f"{artifact_name} must be a regular file")
+
+    for artifact_name in legacy_artifact_names:
+        try:
+            os.unlink(artifact_name, dir_fd=output_directory_fd)
+        except FileNotFoundError:
+            continue
+        except OSError as error:
+            raise RuntimeError(
+                f"could not remove legacy artifact {artifact_name}: {error.strerror or error}"
+            ) from error
 
 
 def _write_json(output_directory_fd: int, artifact_name: str, value: object) -> None:
@@ -372,4 +426,7 @@ that mechanism while preserving the target state.
 
 Claims 4-6 were not replicated because named model outputs and paid API budget
 were not available.
+
+This reproduction makes zero paid API calls. The canonical Space is:
+https://huggingface.co/spaces/wrice/repro-a-benchmark-and-framework-for-evaluating-next-action-predictions-in-spreadsheets
 """

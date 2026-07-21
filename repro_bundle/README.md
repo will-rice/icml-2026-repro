@@ -27,3 +27,6 @@ that mechanism while preserving the target state.
 
 Claims 4-6 were not replicated because named model outputs and paid API budget
 were not available.
+
+This reproduction makes zero paid API calls. The canonical Space is:
+https://huggingface.co/spaces/wrice/repro-a-benchmark-and-framework-for-evaluating-next-action-predictions-in-spreadsheets

@@ -22,6 +22,11 @@ UNREPLICATED_MODEL_CLAIMS = {
         "reason": "Named model outputs and paid API budget were not available.",
     },
 }
+LEGACY_ARTIFACT_NAMES = ("claim_1_audit.json", "claim_2_trace.json")
+CANONICAL_SPACE_URL = (
+    "https://huggingface.co/spaces/wrice/"
+    "repro-a-benchmark-and-framework-for-evaluating-next-action-predictions-in-spreadsheets"
+)
 
 
 def patch_evidence_builders(monkeypatch, claim_1_builder, claim_2_builder, claim_3_builder):
@@ -95,8 +100,105 @@ def test_build_bundle_writes_portable_evidence_files(tmp_path, monkeypatch):
         "one residual fixture",
         "Claims 4-6 were not replicated",
         "released oracle outputs",
+        "zero paid API calls",
+        CANONICAL_SPACE_URL,
     ):
         assert required_text in bundle_readme
+
+
+def test_build_bundle_upgrades_regular_legacy_artifacts(tmp_path, monkeypatch):
+    output_dir = tmp_path / "bundle"
+    output_dir.mkdir()
+    for artifact_name in LEGACY_ARTIFACT_NAMES:
+        (output_dir / artifact_name).write_text("legacy\n", encoding="utf-8")
+    patch_evidence_builders(
+        monkeypatch,
+        lambda: {"verdict": "reproduced"},
+        lambda: {"verdict": "reproduced_from_released_outputs"},
+        lambda output_dir: {"verdict": "reproduced"},
+    )
+
+    cli.build_bundle(output_dir)
+
+    assert {path.name for path in output_dir.iterdir()} == set(cli.BUNDLE_ARTIFACT_NAMES)
+
+
+def test_build_bundle_rejects_unexpected_entry_before_evidence_work(tmp_path, monkeypatch):
+    output_dir = tmp_path / "bundle"
+    output_dir.mkdir()
+    sentinel = output_dir / "sentinel.txt"
+    sentinel.write_text("unchanged\n", encoding="utf-8")
+    patch_evidence_builders(
+        monkeypatch,
+        lambda: pytest.fail("claim 1 evidence builder was called"),
+        lambda: pytest.fail("claim 2 evidence builder was called"),
+        lambda output_dir: pytest.fail("claim 3 evidence builder was called"),
+    )
+
+    with pytest.raises(RuntimeError, match="unexpected output directory entry: sentinel.txt"):
+        cli.build_bundle(output_dir)
+
+    assert sentinel.read_text(encoding="utf-8") == "unchanged\n"
+    assert {path.name for path in output_dir.iterdir()} == {"sentinel.txt"}
+
+
+@pytest.mark.parametrize("artifact_name", LEGACY_ARTIFACT_NAMES)
+@pytest.mark.parametrize("entry_type", ["symlink", "directory"])
+def test_build_bundle_rejects_non_regular_legacy_artifact_before_evidence_work(
+    tmp_path, monkeypatch, artifact_name, entry_type
+):
+    output_dir = tmp_path / "bundle"
+    output_dir.mkdir()
+    external_file = tmp_path / "external.txt"
+    external_file.write_text("unchanged\n", encoding="utf-8")
+    legacy_path = output_dir / artifact_name
+    if entry_type == "symlink":
+        legacy_path.symlink_to(external_file)
+    else:
+        legacy_path.mkdir()
+    patch_evidence_builders(
+        monkeypatch,
+        lambda: pytest.fail("claim 1 evidence builder was called"),
+        lambda: pytest.fail("claim 2 evidence builder was called"),
+        lambda output_dir: pytest.fail("claim 3 evidence builder was called"),
+    )
+
+    with pytest.raises(RuntimeError, match=f"{artifact_name} must be a regular file"):
+        cli.build_bundle(output_dir)
+
+    assert external_file.read_text(encoding="utf-8") == "unchanged\n"
+    if entry_type == "symlink":
+        assert legacy_path.is_symlink()
+    else:
+        assert legacy_path.is_dir()
+
+
+def test_build_bundle_preserves_legacy_artifacts_when_new_artifact_write_fails(
+    tmp_path, monkeypatch
+):
+    output_dir = tmp_path / "bundle"
+    output_dir.mkdir()
+    for artifact_name in LEGACY_ARTIFACT_NAMES:
+        (output_dir / artifact_name).write_text("legacy\n", encoding="utf-8")
+    patch_evidence_builders(
+        monkeypatch,
+        lambda: {"verdict": "reproduced"},
+        lambda: {"verdict": "reproduced_from_released_outputs"},
+        lambda output_dir: {"verdict": "reproduced"},
+    )
+
+    def fail_write(file_descriptor, contents):
+        del file_descriptor, contents
+        raise OSError(errno.EIO, "simulated write failure")
+
+    monkeypatch.setattr(cli.os, "write", fail_write)
+
+    with pytest.raises(RuntimeError, match="could not write claim_1_benchmark.json"):
+        cli.build_bundle(output_dir)
+
+    assert {path.name for path in output_dir.iterdir()} == set(LEGACY_ARTIFACT_NAMES)
+    for artifact_name in LEGACY_ARTIFACT_NAMES:
+        assert (output_dir / artifact_name).read_text(encoding="utf-8") == "legacy\n"
 
 
 def test_build_bundle_accepts_raw_macos_temporary_directory_alias(monkeypatch):
