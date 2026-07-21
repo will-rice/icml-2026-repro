@@ -253,3 +253,112 @@ pytest...................................................................Passed
 ### Follow-Up Concerns
 
 None.
+
+## Final Important Finding Follow-Up
+
+### Changes
+
+- Kept release-sweep residual occurrence at zero cases with 52 executed release
+  trajectories as its denominator.
+- Made the residual correction fixture a separate `residual_correction` mechanism
+  result with its own counting definitions and
+  `deterministic_fixture_mechanism_proof` scope.
+- Added fixture counts for one eligible case, one executed case, zero skipped cases,
+  one residual-patch case, and one target-preserved case.
+- Added explicit denominator populations: execution uses eligible cases; residual
+  correction and target preservation use executed cases.
+
+### TDD Evidence
+
+Initial red command:
+
+```text
+uv run pytest tests/test_future_adaptation_evidence.py -q
+```
+
+Output:
+
+```text
+.F................                                                       [100%]
+1 failed, 17 passed in 17.17s
+```
+
+The residual fixture failed on the missing `mechanism` field while the release sweep
+continued to pass its zero-of-52 assertions.
+
+The denominator population contract was then strengthened with a focused red test:
+
+```text
+uv run pytest tests/test_future_adaptation_evidence.py -q -k residual_patch_fixture_synthesizes
+```
+
+Output:
+
+```text
+F                                                                        [100%]
+1 failed, 17 deselected in 0.39s
+```
+
+The failure was the missing `denominator_definitions` field.
+
+Focused green output before the denominator-name strengthening was:
+
+```text
+..................                                                       [100%]
+18 passed in 16.68s
+```
+
+### Verification
+
+Required focused and upstream command:
+
+```text
+uv run pytest tests/test_future_adaptation_evidence.py tests/test_online_trace.py external/NAPE/tests/test_future_edits.py -q
+```
+
+Final output:
+
+```text
+...............................................................          [100%]
+63 passed in 17.50s
+```
+
+The first pre-commit run reformatted two files and reported two strict test typing
+errors; all behavioral tests passed. The release summary and denominator values were
+explicitly cast, then the final command was:
+
+```text
+uv run pre-commit run -a
+```
+
+Final output:
+
+```text
+check python ast.........................................................Passed
+fix end of files.........................................................Passed
+trim trailing whitespace.................................................Passed
+check for merge conflicts................................................Passed
+fix requirements.txt.................................(no files to check)Skipped
+prettier-format..........................................................Passed
+ruff format..............................................................Passed
+ruff (legacy alias)......................................................Passed
+ty.......................................................................Passed
+pytest...................................................................Passed
+```
+
+### Final Self-Review
+
+- Confirmed release-sweep `summary["residual_patch_cases"]` is 0 and
+  `denominators["residual_patch_cases"]` is 52.
+- Confirmed the fixture is not added to release trajectories, release case counts, or
+  release denominators.
+- Confirmed fixture execution is reported as one executed case over one eligible case,
+  with zero skips.
+- Confirmed residual correction and target preservation are each one case over the
+  fixture's one executed case.
+- Confirmed the fixture retains the exact four-operation ground truth, two-operation
+  prediction, one synthesized missing operation, and `target_preserved=True`.
+
+### Final Concerns
+
+None.

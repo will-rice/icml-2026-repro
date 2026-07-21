@@ -47,6 +47,27 @@ EXPECTED_COUNTING_DEFINITIONS = {
         "zero false negatives, and zero mismatches."
     ),
 }
+EXPECTED_RESIDUAL_FIXTURE_DEFINITIONS = {
+    "eligible_case": (
+        "The exact ground-truth and prediction pair in this deterministic fixture is one "
+        "eligible case."
+    ),
+    "executed_case": (
+        "The eligible fixture is executed when the official evaluator, simulator, rebuild, "
+        "and final comparison complete."
+    ),
+    "residual_patch_case": (
+        "The executed fixture is a residual patch case when metadata['missing_ops_count'] "
+        "is greater than zero."
+    ),
+    "target_preserved_case": (
+        "The executed fixture preserves the target when the rebuilt-versus-target "
+        "comparison has zero false positives, zero false negatives, and zero mismatches."
+    ),
+    "skip_treatment": (
+        "The deterministic fixture does not permit skips; any failure aborts evidence generation."
+    ),
+}
 
 
 def test_audit_future_adaptation_preserves_all_release_targets():
@@ -73,6 +94,10 @@ def test_audit_future_adaptation_preserves_all_release_targets():
         "residual_patch_cases": 52,
         "target_preserved_cases": 52,
     }
+    summary = cast(dict[str, int], evidence["summary"])
+    denominators = cast(dict[str, int], evidence["denominators"])
+    assert summary["residual_patch_cases"] == 0
+    assert denominators["residual_patch_cases"] == 52
     trajectories = cast(list[dict[str, object]], evidence["trajectories"])
     assert all(row["target_preserved"] for row in trajectories)
 
@@ -80,6 +105,26 @@ def test_audit_future_adaptation_preserves_all_release_targets():
 def test_residual_patch_fixture_synthesizes_missing_operation():
     evidence = audit_residual_patch_fixture()
 
+    assert evidence["mechanism"] == "residual_correction"
+    assert evidence["counting_definitions"] == EXPECTED_RESIDUAL_FIXTURE_DEFINITIONS
+    assert evidence["case_counts"] == {
+        "eligible_cases": 1,
+        "executed_cases": 1,
+        "skipped_cases": 0,
+        "residual_patch_cases": 1,
+        "target_preserved_cases": 1,
+    }
+    assert evidence["denominators"] == {
+        "executed_cases": 1,
+        "residual_patch_cases": 1,
+        "target_preserved_cases": 1,
+    }
+    assert evidence["denominator_definitions"] == {
+        "executed_cases": "eligible_cases",
+        "residual_patch_cases": "executed_cases",
+        "target_preserved_cases": "executed_cases",
+    }
+    assert evidence["evidence_scope"] == "deterministic_fixture_mechanism_proof"
     assert evidence["ground_truth"] == [
         "VALUE | Sheet1!A1 | 1",
         "VALUE | Sheet1!A2 | 1",
@@ -284,12 +329,35 @@ def test_build_future_adaptation_evidence_composes_official_evidence(tmp_path, m
         "target_preserved_cases": 52,
     }
     release_evidence = {
-        "summary": {"trajectories": 52},
+        "summary": {"trajectories": 52, "residual_patch_cases": 0},
         "counting_definitions": EXPECTED_COUNTING_DEFINITIONS,
         "case_counts": case_counts,
         "denominators": denominators,
     }
-    residual_evidence = {"missing_ops_count": 1}
+    residual_evidence = {
+        "mechanism": "residual_correction",
+        "counting_definitions": EXPECTED_RESIDUAL_FIXTURE_DEFINITIONS,
+        "case_counts": {
+            "eligible_cases": 1,
+            "executed_cases": 1,
+            "skipped_cases": 0,
+            "residual_patch_cases": 1,
+            "target_preserved_cases": 1,
+        },
+        "denominators": {
+            "executed_cases": 1,
+            "residual_patch_cases": 1,
+            "target_preserved_cases": 1,
+        },
+        "denominator_definitions": {
+            "executed_cases": "eligible_cases",
+            "residual_patch_cases": "executed_cases",
+            "target_preserved_cases": "executed_cases",
+        },
+        "missing_ops_count": 1,
+        "target_preserved": True,
+        "evidence_scope": "deterministic_fixture_mechanism_proof",
+    }
     trace_evidence = {"summary": {"accepted": 1, "rejected": 1}}
     monkeypatch.setattr(
         future_adaptation_evidence,

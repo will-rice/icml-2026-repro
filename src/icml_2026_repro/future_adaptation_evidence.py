@@ -62,6 +62,27 @@ COUNTING_DEFINITIONS = {
         "zero false negatives, and zero mismatches."
     ),
 }
+RESIDUAL_FIXTURE_COUNTING_DEFINITIONS = {
+    "eligible_case": (
+        "The exact ground-truth and prediction pair in this deterministic fixture is one "
+        "eligible case."
+    ),
+    "executed_case": (
+        "The eligible fixture is executed when the official evaluator, simulator, rebuild, "
+        "and final comparison complete."
+    ),
+    "residual_patch_case": (
+        "The executed fixture is a residual patch case when metadata['missing_ops_count'] "
+        "is greater than zero."
+    ),
+    "target_preserved_case": (
+        "The executed fixture preserves the target when the rebuilt-versus-target "
+        "comparison has zero false positives, zero false negatives, and zero mismatches."
+    ),
+    "skip_treatment": (
+        "The deterministic fixture does not permit skips; any failure aborts evidence generation."
+    ),
+}
 
 
 class UnsupportedOperationError(RuntimeError):
@@ -170,12 +191,32 @@ def audit_residual_patch_fixture() -> dict[str, object]:
     if evidence["missing_ops_count"] != 1:
         raise RuntimeError("residual fixture did not synthesize exactly one missing operation")
     return {
+        "mechanism": "residual_correction",
+        "counting_definitions": dict(RESIDUAL_FIXTURE_COUNTING_DEFINITIONS),
+        "case_counts": {
+            "eligible_cases": 1,
+            "executed_cases": 1,
+            "skipped_cases": 0,
+            "residual_patch_cases": 1,
+            "target_preserved_cases": 1,
+        },
+        "denominators": {
+            "executed_cases": 1,
+            "residual_patch_cases": 1,
+            "target_preserved_cases": 1,
+        },
+        "denominator_definitions": {
+            "executed_cases": "eligible_cases",
+            "residual_patch_cases": "executed_cases",
+            "target_preserved_cases": "executed_cases",
+        },
         "ground_truth": list(RESIDUAL_GROUND_TRUTH),
         "prediction": list(RESIDUAL_PREDICTION),
         "operations_removed": evidence["operations_removed"],
         "inverse_ops_added": evidence["inverse_ops_added"],
         "missing_ops_count": evidence["missing_ops_count"],
         "target_preserved": evidence["target_preserved"],
+        "evidence_scope": "deterministic_fixture_mechanism_proof",
     }
 
 
