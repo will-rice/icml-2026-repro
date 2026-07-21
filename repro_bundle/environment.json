@@ -3,6 +3,7 @@
     "uv sync",
     "uv run nape-repro",
     "uv run pytest tests/test_cli.py -q",
+    "uv run pytest tests/test_benchmark_evidence.py tests/test_predictability_evidence.py tests/test_future_adaptation_evidence.py -q",
     "uv run pytest -q",
     "uv run pytest external/NAPE/tests -q",
     "uv run pre-commit run -a",
@@ -26,5 +27,5 @@
   },
   "python": "3.13.0",
   "python_implementation": "CPython",
-  "schema": "icml-2026-repro-bundle/v1"
+  "schema": "icml-2026-repro-bundle/v2"
 }

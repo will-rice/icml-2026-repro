@@ -7,6 +7,10 @@
 | Page |
 | --- |
 | [Executive summary](#/executive-summary) |
-| [Claim 1: Benchmark generates 58 symbolic action sequences consisting of 13K actions from publicly available spreadsheets.](#/claim-1-benchmark-generates-58-symbolic-action-sequences-consisting-of-13k-actions-from-publicly-available-spreadsheets) |
-| [Claim 2: Online evaluation methodology predicts actions after each user action, accepts or rejects prediction, and updates future actions.](#/claim-2-online-evaluation-methodology-predicts-actions-after-each-user-action-accepts-or-rejects-prediction-and-updates-future-actions) |
+| [Claim 1: Benchmark and construction](#/claim-1-benchmark-and-construction) |
+| [Claim 2: Empirical predictability](#/claim-2-empirical-predictability) |
+| [Claim 3: Online future adaptation](#/claim-3-online-future-adaptation) |
+| [Claim 4: GPT-5 R results](#/claim-4-gpt-5-r-results) |
+| [Claim 5: Always-accept ablation](#/claim-5-always-accept-ablation) |
+| [Claim 6: Stride ablation](#/claim-6-stride-ablation) |
 | [Conclusion](#/conclusion) |
