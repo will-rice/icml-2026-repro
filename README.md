@@ -75,6 +75,23 @@ uv run ty check src tests
 git diff --check
 ```
 
+## OpenResearch Provenance
+
+Both experiment nodes use the same fixed command:
+
+```bash
+git submodule update --init --recursive && uv run nape-repro && cp repro_bundle/README.md EVAL.md && uv run pytest -q
+```
+
+| Experiment | Git branch | Commit | Local run | Result |
+| --- | --- | --- | --- | --- |
+| Previously judged baseline | [`orx/public-scored-submission-baseline`](https://github.com/will-rice/icml-2026-repro/tree/orx/public-scored-submission-baseline) | `e302a794359812e060b52673517db5f79103191c` | `c9e2273a-1c61-4c58-8cef-af044239950b` | 37 passed |
+| Judge-aligned Claims 1-3 evidence | [`orx/judge-aligned-claims-1-3-evidence`](https://github.com/will-rice/icml-2026-repro/tree/orx/judge-aligned-claims-1-3-evidence) | `20864f5e844e63cccb80608f26113aec4bd8e0e1` | `f4b19198-1047-4cc9-a551-eddb7e33e1be` | 119 passed |
+
+The local OpenResearch project id is
+`d039cdbd-9330-4578-a879-2bd753a4dfd2`; the child experiment is
+`4242cbfc-ab63-46fe-933a-f18484160e6c`.
+
 ## Challenge Validation
 
 For the ICML 2026 Agent Reproducibility Challenge, download the current
