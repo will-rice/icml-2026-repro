@@ -4,6 +4,7 @@ from typing import cast
 
 import pytest
 
+import icml_2026_repro
 import icml_2026_repro.benchmark_evidence as benchmark_evidence
 from icml_2026_repro.benchmark_evidence import audit_benchmark_release, build_benchmark_evidence
 
@@ -16,7 +17,7 @@ REQUIRED_RAW_FILES = [
 ]
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def pinned_clean_nape_checkout(monkeypatch):
     monkeypatch.setattr(
         benchmark_evidence,
@@ -51,7 +52,8 @@ def test_audit_benchmark_release_reproduces_paper_statistics():
 
 
 @pytest.fixture
-def minimal_nape_release(tmp_path):
+def minimal_nape_release(tmp_path, pinned_clean_nape_checkout):
+    del pinned_clean_nape_checkout
     nape_path = tmp_path / "NAPE"
     trajectories_path = nape_path / "data" / "trajectories"
     raw_path = nape_path / "data" / "raw"
@@ -188,3 +190,8 @@ def test_build_benchmark_evidence_records_verified_pinned_revision():
 
     assert evidence["source_revision"] == benchmark_evidence.GITHUB_REVISION
     assert evidence["evidence_scope"] == "released_artifact_recomputation_and_source_audit"
+
+
+def test_package_exports_benchmark_builder_as_canonical_claim_1_interface():
+    assert icml_2026_repro.build_benchmark_evidence is build_benchmark_evidence
+    assert not hasattr(icml_2026_repro, "build_claim_1_evidence")

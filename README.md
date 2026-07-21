@@ -15,11 +15,12 @@ without paid model inference.
 - **Claim 2: reproduced from released outputs.** Auditing the 52 released oracle
   outputs gives 68.04% weighted property coverage. The original paid
   frontier-model oracle calls were not rerun.
-- **Claim 3: reproduced.** Across 52 executed release cases, the official
+- **Claim 3: reproduced.** Across one deterministic adaptation case per each
+  of the 52 released trajectories, the official
   evaluator removes satisfied future operations in 50/52 cases, inserts inverse
   operations in 52/52 cases, and preserves the target in 52/52 cases. One
   residual fixture separately exercises residual correction and preserves its
-  target.
+  target. This is not a full per-action model rollout.
 
 Claims 4-6 were not replicated because named model outputs and paid API budget
 were not available. These results do not benchmark model quality or reproduce
@@ -30,7 +31,6 @@ cost is `$0.00`.
 
 - Python 3.13 or newer
 - [`uv`](https://docs.astral.sh/uv/)
-- Network access for the pinned Hugging Face dataset audit
 - The repository checkout, including the pinned `external/NAPE` submodule
 
 Install the locked environment with:

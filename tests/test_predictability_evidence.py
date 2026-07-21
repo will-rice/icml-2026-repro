@@ -13,7 +13,7 @@ from icml_2026_repro.predictability_evidence import (
 RAW_PATH = Path(__file__).resolve().parents[1] / "external" / "NAPE" / "data" / "raw"
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def pinned_clean_nape_checkout(monkeypatch):
     monkeypatch.setattr(
         predictability_evidence,
@@ -24,7 +24,8 @@ def pinned_clean_nape_checkout(monkeypatch):
 
 
 @pytest.fixture
-def raw_fixture(tmp_path):
+def raw_fixture(tmp_path, pinned_clean_nape_checkout):
+    del pinned_clean_nape_checkout
     raw_path = tmp_path / "NAPE" / "data" / "raw"
     trajectory_path = raw_path / "trajectory"
     trajectory_path.mkdir(parents=True)

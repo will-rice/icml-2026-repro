@@ -274,11 +274,11 @@
 <!-- trackio-cell
 {"type": "markdown", "id": "cell_d54491159369", "created_at": "2026-07-21T16:05:07+00:00", "title": "Executive summary", "pinned": true, "pinned_at": "2026-07-21T16:05:07+00:00"}
 -->
-Current public judged score: **1/12**. This judge-aligned rejudging submission adds full-release evidence for Claims 1-3; it does not guarantee a score change.
+Current public judged score: **1/12**. This judge-aligned rejudging submission adds release evidence for Claims 1-3; it does not guarantee a score change.
 
 - **Claim 1 — REPRODUCED:** 52 trajectories, 11,907 operations, range 35-821, mean 229, and median 164, plus an executable construction-source audit. Human annotation is release provenance only.
 - **Claim 2 — REPRODUCED FROM RELEASED OUTPUTS:** 126,940 / 186,574 = 68.04%; mean 65.99%; median 66.34%; 44/52 trajectories above 50%. The original paid frontier-oracle calls were not rerun.
-- **Claim 3 — REPRODUCED:** all 52 release trajectories executed; removal appeared in 50, inverse insertion in 52, and target preservation in 52. One fixed fixture exercises residual patching; the small orchestrator trace establishes ordering and accept/reject behavior only.
+- **Claim 3 — REPRODUCED:** one deterministic adaptation case ran per each of the 52 released trajectories, not a full per-action rollout; removal appeared in 50, inverse insertion in 52, and target preservation in 52. One fixed fixture exercises residual patching; the small orchestrator trace establishes ordering and accept/reject behavior only.
 - **Claims 4-6 — NOT REPLICATED:** no verdict is offered.
 
 Execution was local CPU only with zero paid API cost (`$0.00`).

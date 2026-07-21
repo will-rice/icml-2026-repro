@@ -3,13 +3,13 @@
 
 ---
 <!-- trackio-cell
-{"type": "code", "id": "cell_20fd77758075", "created_at": "2026-07-21T15:59:42+00:00", "title": "Recompute all benchmark statistics", "command": ["uv", "run", "pytest", "tests/test_benchmark_evidence.py", "-q"], "exit_code": 0, "duration_s": 0.81}
+{"type": "code", "id": "cell_20fd77758075", "created_at": "2026-07-21T15:59:42+00:00", "title": "Recompute all benchmark statistics", "command": ["uv", "run", "pytest", "tests/test_benchmark_evidence.py", "-q"], "exit_code": 0, "duration_s": 0.66}
 -->
 ````bash
 $ uv run pytest tests/test_benchmark_evidence.py -q
 ````
 
-exit 0 · 0.8s
+exit 0 · 0.7s
 
 
 ````python title=test_benchmark_evidence.py
@@ -19,6 +19,7 @@ from typing import cast
 
 import pytest
 
+import icml_2026_repro
 import icml_2026_repro.benchmark_evidence as benchmark_evidence
 from icml_2026_repro.benchmark_evidence import audit_benchmark_release, build_benchmark_evidence
 
@@ -31,7 +32,7 @@ REQUIRED_RAW_FILES = [
 ]
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def pinned_clean_nape_checkout(monkeypatch):
     monkeypatch.setattr(
         benchmark_evidence,
@@ -66,7 +67,8 @@ def test_audit_benchmark_release_reproduces_paper_statistics():
 
 
 @pytest.fixture
-def minimal_nape_release(tmp_path):
+def minimal_nape_release(tmp_path, pinned_clean_nape_checkout):
+    del pinned_clean_nape_checkout
     nape_path = tmp_path / "NAPE"
     trajectories_path = nape_path / "data" / "trajectories"
     raw_path = nape_path / "data" / "raw"
@@ -204,12 +206,17 @@ def test_build_benchmark_evidence_records_verified_pinned_revision():
     assert evidence["source_revision"] == benchmark_evidence.GITHUB_REVISION
     assert evidence["evidence_scope"] == "released_artifact_recomputation_and_source_audit"
 
+
+def test_package_exports_benchmark_builder_as_canonical_claim_1_interface():
+    assert icml_2026_repro.build_benchmark_evidence is build_benchmark_evidence
+    assert not hasattr(icml_2026_repro, "build_claim_1_evidence")
+
 ````
 
 
 ````output
-................                                                         [100%]
-16 passed in 0.44s
+.................                                                        [100%]
+17 passed in 0.66s
 
 ````
 

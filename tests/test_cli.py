@@ -142,6 +142,27 @@ def test_build_bundle_rejects_unexpected_entry_before_evidence_work(tmp_path, mo
     assert {path.name for path in output_dir.iterdir()} == {"sentinel.txt"}
 
 
+@pytest.mark.parametrize("artifact_name", cli.BUNDLE_ARTIFACT_NAMES)
+def test_build_bundle_rejects_current_artifact_directory_before_evidence_work(
+    tmp_path, monkeypatch, artifact_name
+):
+    output_dir = tmp_path / "bundle"
+    output_dir.mkdir()
+    artifact_path = output_dir / artifact_name
+    artifact_path.mkdir()
+    patch_evidence_builders(
+        monkeypatch,
+        lambda: pytest.fail("claim 1 evidence builder was called"),
+        lambda: pytest.fail("claim 2 evidence builder was called"),
+        lambda output_dir: pytest.fail("claim 3 evidence builder was called"),
+    )
+
+    with pytest.raises(RuntimeError, match=f"{artifact_name} must be a regular file"):
+        cli.build_bundle(output_dir)
+
+    assert artifact_path.is_dir()
+
+
 @pytest.mark.parametrize("artifact_name", LEGACY_ARTIFACT_NAMES)
 @pytest.mark.parametrize("entry_type", ["symlink", "directory"])
 def test_build_bundle_rejects_non_regular_legacy_artifact_before_evidence_work(
@@ -308,7 +329,7 @@ def test_build_bundle_rejects_symlinked_artifact_before_evidence_work(
         lambda output_dir: pytest.fail("claim 3 evidence builder was called"),
     )
 
-    with pytest.raises(RuntimeError, match=f"{artifact_name} must not be a symlink"):
+    with pytest.raises(RuntimeError, match=f"{artifact_name} must be a regular file"):
         cli.build_bundle(output_dir)
 
     assert external_file.read_text(encoding="utf-8") == "unchanged\n"

@@ -1,4 +1,5 @@
 import json
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
@@ -16,9 +17,11 @@ from icml_2026_repro.future_adaptation_evidence import (
 TRAJECTORY_PATH = (
     Path(__file__).resolve().parents[1] / "external" / "NAPE" / "data" / "trajectories"
 )
+NAPE_PATH = TRAJECTORY_PATH.parents[1]
 EXPECTED_COUNTING_DEFINITIONS = {
     "eligible_case": (
-        "One structurally valid trajectory JSON file containing at least two symbolic operations."
+        "One deterministic adaptation case from each structurally valid trajectory JSON file "
+        "containing at least two symbolic operations."
     ),
     "executed_case": (
         "An eligible case for which parsing and pre-evaluation application are supported "
@@ -71,7 +74,7 @@ EXPECTED_RESIDUAL_FIXTURE_DEFINITIONS = {
 
 
 def test_audit_future_adaptation_preserves_all_release_targets():
-    evidence = audit_future_adaptation(TRAJECTORY_PATH)
+    evidence = audit_future_adaptation(NAPE_PATH)
 
     assert evidence["summary"] == {
         "trajectories": 52,
@@ -154,12 +157,12 @@ def test_audit_future_adaptation_rejects_malformed_operation_with_filename(tmp_p
     )
 
     with pytest.raises(ValueError, match="malformed.json"):
-        audit_future_adaptation(tmp_path)
+        future_adaptation_evidence._audit_fixture_trajectory_directory(tmp_path)
 
 
 def test_audit_future_adaptation_rejects_empty_release(tmp_path):
     with pytest.raises(ValueError, match="no trajectory files"):
-        audit_future_adaptation(tmp_path)
+        future_adaptation_evidence._audit_fixture_trajectory_directory(tmp_path)
 
 
 def test_audit_future_adaptation_skips_only_unsupported_pre_evaluation_application(
@@ -185,7 +188,7 @@ def test_audit_future_adaptation_skips_only_unsupported_pre_evaluation_applicati
 
     monkeypatch.setattr(future_adaptation_evidence, "StateBuilder", UnsupportedStateBuilder)
 
-    evidence = audit_future_adaptation(tmp_path)
+    evidence = future_adaptation_evidence._audit_fixture_trajectory_directory(tmp_path)
 
     assert evidence["case_counts"] == {
         "release_trajectories": 1,
@@ -260,7 +263,7 @@ def test_downstream_not_implemented_error_propagates_with_filename(tmp_path, mon
         monkeypatch.setattr(future_adaptation_evidence, "StateComparator", FailingComparator)
 
     with pytest.raises(NotImplementedError, match=rf"downstream\.json: {stage} failed") as error:
-        audit_future_adaptation(tmp_path)
+        future_adaptation_evidence._audit_fixture_trajectory_directory(tmp_path)
 
     assert isinstance(error.value.__cause__, NotImplementedError)
 
@@ -290,7 +293,7 @@ def test_unexpected_pre_evaluation_state_failure_propagates_with_filename(tmp_pa
         RuntimeError,
         match=r"state-failure\.json: pre-evaluation state application failed",
     ) as error:
-        audit_future_adaptation(tmp_path)
+        future_adaptation_evidence._audit_fixture_trajectory_directory(tmp_path)
 
     assert isinstance(error.value.__cause__, RuntimeError)
 
@@ -308,11 +311,43 @@ def test_audit_future_adaptation_raises_when_final_state_is_unequal(monkeypatch)
     monkeypatch.setattr(future_adaptation_evidence, "StateComparator", UnequalComparator)
 
     with pytest.raises(RuntimeError, match="target state"):
-        audit_future_adaptation(TRAJECTORY_PATH)
+        audit_future_adaptation(NAPE_PATH)
 
 
 def test_audit_future_adaptation_is_deterministic():
-    assert audit_future_adaptation(TRAJECTORY_PATH) == audit_future_adaptation(TRAJECTORY_PATH)
+    assert audit_future_adaptation(NAPE_PATH) == audit_future_adaptation(NAPE_PATH)
+
+
+def test_release_audit_rejects_copied_trajectory_input(tmp_path):
+    copied_nape_path = tmp_path / "NAPE"
+    copied_trajectory_path = copied_nape_path / "data" / "trajectories"
+    copied_trajectory_path.mkdir(parents=True)
+    source_path = next(TRAJECTORY_PATH.glob("*.json"))
+    (copied_trajectory_path / source_path.name).write_bytes(source_path.read_bytes())
+    subprocess.run(["git", "init", str(copied_nape_path)], check=True, capture_output=True)
+    subprocess.run(
+        ["git", "-C", str(copied_nape_path), "add", "data/trajectories"],
+        check=True,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(copied_nape_path),
+            "-c",
+            "user.name=Test User",
+            "-c",
+            "user.email=test@example.com",
+            "commit",
+            "-m",
+            "copied fixture",
+        ],
+        check=True,
+        capture_output=True,
+    )
+
+    with pytest.raises(RuntimeError, match="NAPE checkout is at .* expected"):
+        audit_future_adaptation(copied_nape_path)
 
 
 def test_build_future_adaptation_evidence_composes_official_evidence(tmp_path, monkeypatch):
@@ -377,19 +412,24 @@ def test_build_future_adaptation_evidence_composes_official_evidence(tmp_path, m
 
     assert build_future_adaptation_evidence(tmp_path) == {
         "claim": (
-            "Online evaluation predicts after each user action, accepts or rejects "
-            "predictions, removes satisfied future operations, prepends inverses for "
-            "false positives, and patches residual differences to preserve the target state."
+            "NAPE's future-edit implementation removes satisfied future operations, prepends "
+            "inverses for false positives, and patches residual differences to preserve the "
+            "target state after accepted predictions."
         ),
         "source_revision": GITHUB_REVISION,
+        "verified_input_root": "external/NAPE",
         "input_path": "external/NAPE/data/trajectories/*.json",
+        "release_case_scope": (
+            "One deterministic adaptation case per each of the 52 released trajectories; "
+            "this is not a full per-action model rollout."
+        ),
         "counting_definitions": EXPECTED_COUNTING_DEFINITIONS,
         "case_counts": case_counts,
         "denominators": denominators,
         "release_sweep": release_evidence,
         "residual_patch_fixture": residual_evidence,
         "orchestrator_trace": trace_evidence,
-        "evidence_scope": "official_evaluator_full_release_and_deterministic_fixture",
+        "evidence_scope": "official_evaluator_one_case_per_release_trajectory_and_fixture",
         "verdict": "reproduced",
     }
 
@@ -397,7 +437,7 @@ def test_build_future_adaptation_evidence_composes_official_evidence(tmp_path, m
 @pytest.mark.parametrize(
     "produce_evidence",
     [
-        lambda output_dir: audit_future_adaptation(TRAJECTORY_PATH),
+        lambda output_dir: audit_future_adaptation(NAPE_PATH),
         lambda output_dir: audit_residual_patch_fixture(),
         build_future_adaptation_evidence,
     ],
@@ -416,7 +456,7 @@ def test_public_evidence_rejects_mismatched_nape_revision(tmp_path, monkeypatch,
 @pytest.mark.parametrize(
     "produce_evidence",
     [
-        lambda output_dir: audit_future_adaptation(TRAJECTORY_PATH),
+        lambda output_dir: audit_future_adaptation(NAPE_PATH),
         lambda output_dir: audit_residual_patch_fixture(),
         build_future_adaptation_evidence,
     ],

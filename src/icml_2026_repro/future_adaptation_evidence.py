@@ -33,7 +33,8 @@ RESIDUAL_PREDICTION = [
 ]
 COUNTING_DEFINITIONS = {
     "eligible_case": (
-        "One structurally valid trajectory JSON file containing at least two symbolic operations."
+        "One deterministic adaptation case from each structurally valid trajectory JSON file "
+        "containing at least two symbolic operations."
     ),
     "executed_case": (
         "An eligible case for which parsing and pre-evaluation application are supported "
@@ -101,9 +102,14 @@ class TrajectoryEvidence(TypedDict):
     reason: NotRequired[str]
 
 
-def audit_future_adaptation(trajectory_path: Path) -> dict[str, object]:
-    """Exercise official future-edit adaptation over a trajectory release."""
-    _verify_nape_checkout()
+def audit_future_adaptation(nape_path: Path) -> dict[str, object]:
+    """Audit one deterministic release case per trajectory in a verified NAPE root."""
+    _verify_nape_checkout(nape_path)
+    return _audit_fixture_trajectory_directory(nape_path / "data" / "trajectories")
+
+
+def _audit_fixture_trajectory_directory(trajectory_path: Path) -> dict[str, object]:
+    """Execute parser/evaluator fixtures without making release provenance claims."""
     trajectory_files = sorted(trajectory_path.glob("*.json"))
     if not trajectory_files:
         raise ValueError(f"no trajectory files found in {trajectory_path}")
@@ -176,7 +182,7 @@ def audit_future_adaptation(trajectory_path: Path) -> dict[str, object]:
 
 def audit_residual_patch_fixture() -> dict[str, object]:
     """Exercise the evaluator's residual missing-operation synthesis path."""
-    _verify_nape_checkout()
+    _verify_nape_checkout(REPOSITORY_ROOT / "external" / "NAPE")
     operations = _parse_operations(RESIDUAL_GROUND_TRUTH, "residual fixture")
     predicted = _parse_operations(RESIDUAL_PREDICTION, "residual fixture prediction")
     initial_state, target_state = _build_pre_evaluation_states(operations, "residual fixture")
@@ -221,35 +227,37 @@ def audit_residual_patch_fixture() -> dict[str, object]:
 
 
 def build_future_adaptation_evidence(output_dir: Path) -> dict[str, object]:
-    """Compose full-release, residual, and online-orchestrator evidence."""
-    _verify_nape_checkout()
-    release_evidence = audit_future_adaptation(
-        REPOSITORY_ROOT / "external" / "NAPE" / "data" / "trajectories"
-    )
+    """Compose release-wide one-case, residual, and online-orchestrator evidence."""
+    nape_path = REPOSITORY_ROOT / "external" / "NAPE"
+    release_evidence = audit_future_adaptation(nape_path)
     residual_evidence = audit_residual_patch_fixture()
     trace_evidence = build_online_trace_evidence(output_dir)
     return {
         "claim": (
-            "Online evaluation predicts after each user action, accepts or rejects "
-            "predictions, removes satisfied future operations, prepends inverses for "
-            "false positives, and patches residual differences to preserve the target state."
+            "NAPE's future-edit implementation removes satisfied future operations, prepends "
+            "inverses for false positives, and patches residual differences to preserve the "
+            "target state after accepted predictions."
         ),
         "source_revision": GITHUB_REVISION,
+        "verified_input_root": "external/NAPE",
         "input_path": "external/NAPE/data/trajectories/*.json",
+        "release_case_scope": (
+            "One deterministic adaptation case per each of the 52 released trajectories; "
+            "this is not a full per-action model rollout."
+        ),
         "counting_definitions": release_evidence["counting_definitions"],
         "case_counts": release_evidence["case_counts"],
         "denominators": release_evidence["denominators"],
         "release_sweep": release_evidence,
         "residual_patch_fixture": residual_evidence,
         "orchestrator_trace": trace_evidence,
-        "evidence_scope": "official_evaluator_full_release_and_deterministic_fixture",
+        "evidence_scope": "official_evaluator_one_case_per_release_trajectory_and_fixture",
         "verdict": "reproduced",
     }
 
 
-def _verify_nape_checkout() -> None:
-    """Require the exact clean NAPE checkout used by the evaluator imports."""
-    nape_path = REPOSITORY_ROOT / "external" / "NAPE"
+def _verify_nape_checkout(nape_path: Path) -> None:
+    """Require the exact clean NAPE root supplied to a release audit."""
     revision = read_git_head(nape_path)
     if revision != GITHUB_REVISION:
         raise RuntimeError(f"NAPE checkout is at {revision}, expected {GITHUB_REVISION}")

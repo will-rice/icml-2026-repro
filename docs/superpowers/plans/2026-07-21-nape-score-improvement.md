@@ -26,7 +26,7 @@
 - `tests/test_benchmark_evidence.py`: exact release aggregates and malformed/missing-input failures for Claim 1.
 - `src/icml_2026_repro/predictability_evidence.py`: schema validation and aggregation of the 52 released predictability outputs for Claim 2.
 - `tests/test_predictability_evidence.py`: exact aggregate and invalid arithmetic/schema tests for Claim 2.
-- `src/icml_2026_repro/future_adaptation_evidence.py`: full-release official future-edit simulation and fixed residual-patch mechanism case for Claim 3.
+- `src/icml_2026_repro/future_adaptation_evidence.py`: one deterministic official future-edit case per release trajectory and a fixed residual-patch mechanism case for Claim 3.
 - `tests/test_future_adaptation_evidence.py`: target preservation, mechanism counts, malformed trajectory, and determinism tests for Claim 3.
 - `src/icml_2026_repro/cli.py`: serialize the six judge-aligned claim artifacts and environment guide while retaining existing safe artifact writes.
 - `tests/test_cli.py`: assert the new bundle contract and portable serialization.
@@ -322,7 +322,7 @@ git add src/icml_2026_repro/predictability_evidence.py tests/test_predictability
 git commit -m "feat: recompute released NAPE predictability ceiling"
 ```
 
-### Task 4: Full-Release Future Adaptation Evidence
+### Task 4: Release-Wide Future Adaptation Evidence
 
 **Files:**
 - Create: `src/icml_2026_repro/future_adaptation_evidence.py`
@@ -331,9 +331,9 @@ git commit -m "feat: recompute released NAPE predictability ceiling"
 
 **Interfaces:**
 - Consumes: `build_claim_2_evidence(output_dir: Path) -> dict[str, object]` as the supporting orchestrator trace and official `StateBuilder`, `symbolic_to_operations`, `StepEvaluator`, `FutureEditsManager`, and `StateComparator` APIs.
-- Produces: `audit_future_adaptation(trajectory_path: Path) -> dict[str, object]`, `audit_residual_patch_fixture() -> dict[str, object]`, and `build_future_adaptation_evidence(output_dir: Path) -> dict[str, object]`.
+- Produces: `audit_future_adaptation(nape_path: Path) -> dict[str, object]`, `_audit_fixture_trajectory_directory(trajectory_path: Path) -> dict[str, object]`, `audit_residual_patch_fixture() -> dict[str, object]`, and `build_future_adaptation_evidence(output_dir: Path) -> dict[str, object]`.
 
-- [ ] **Step 1: Write failing full-release and fixture tests**
+- [ ] **Step 1: Write failing release-wide and fixture tests**
 
 ```python
 from pathlib import Path
@@ -344,13 +344,11 @@ from icml_2026_repro.future_adaptation_evidence import (
 )
 
 
-TRAJECTORY_PATH = (
-    Path(__file__).resolve().parents[1] / "external" / "NAPE" / "data" / "trajectories"
-)
+NAPE_PATH = Path(__file__).resolve().parents[1] / "external" / "NAPE"
 
 
 def test_audit_future_adaptation_preserves_all_release_targets():
-    evidence = audit_future_adaptation(TRAJECTORY_PATH)
+    evidence = audit_future_adaptation(NAPE_PATH)
 
     assert evidence["summary"] == {
         "trajectories": 52,
@@ -409,17 +407,19 @@ Record per-trajectory `name`, counts from `operations_removed`, `inverse_ops_add
 
 Use the exact four-operation ground truth and two-operation prediction asserted in Step 1. Run the same official evaluator/simulator flow at `start_idx=1`, `end_idx=1`; require `metadata["missing_ops_count"] == 1` and final target equality.
 
-`build_future_adaptation_evidence(output_dir)` must verify the checkout, call both audits, call the renamed `build_online_trace_evidence(output_dir)` from `online_trace.py`, and return:
+`build_future_adaptation_evidence(output_dir)` must pass the verified NAPE root to the release audit, call the residual audit, call the renamed `build_online_trace_evidence(output_dir)` from `online_trace.py`, and return:
 
 ```python
 {
-    "claim": "Online evaluation predicts after each user action, accepts or rejects predictions, removes satisfied future operations, prepends inverses for false positives, and patches residual differences to preserve the target state.",
+    "claim": "NAPE's future-edit implementation removes satisfied future operations, prepends inverses for false positives, and patches residual differences to preserve the target state after accepted predictions.",
     "source_revision": GITHUB_REVISION,
+    "verified_input_root": "external/NAPE",
     "input_path": "external/NAPE/data/trajectories/*.json",
+    "release_case_scope": "One deterministic adaptation case per each of the 52 released trajectories; this is not a full per-action model rollout.",
     "release_sweep": release_evidence,
     "residual_patch_fixture": residual_evidence,
     "orchestrator_trace": trace_evidence,
-    "evidence_scope": "official_evaluator_full_release_and_deterministic_fixture",
+    "evidence_scope": "official_evaluator_one_case_per_release_trajectory_and_fixture",
     "verdict": "reproduced",
 }
 ```
@@ -691,7 +691,7 @@ Expected: public content matches the local validated logbook and references the 
 
 - [ ] **Step 7: Check asynchronous judge output by Space SHA**
 
-Query the challenge's public verdict dataset and select the row whose submitted Space SHA equals the SHA captured in Step 3. If no row exists yet, report `rejudge pending` and poll later without republishing.
+Query the challenge's public verdict dataset and select the row whose submitted Space SHA equals the SHA captured in Step 5. If no row exists yet, report `rejudge pending` and poll later without republishing.
 
 Expected when complete: a new verdict row tied to the new SHA. Report its per-claim labels and total score exactly; do not infer success from publication alone.
 

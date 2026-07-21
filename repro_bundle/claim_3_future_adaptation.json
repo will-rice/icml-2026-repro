@@ -5,10 +5,10 @@
     "release_trajectories": 52,
     "skipped_cases": 0
   },
-  "claim": "Online evaluation predicts after each user action, accepts or rejects predictions, removes satisfied future operations, prepends inverses for false positives, and patches residual differences to preserve the target state.",
+  "claim": "NAPE's future-edit implementation removes satisfied future operations, prepends inverses for false positives, and patches residual differences to preserve the target state after accepted predictions.",
   "counting_definitions": {
     "deterministic_mutation": "After operation 0, predict the exact operation 1 followed by VALUE on the first operation's sheet at ZZ999 with value 987654321.",
-    "eligible_case": "One structurally valid trajectory JSON file containing at least two symbolic operations.",
+    "eligible_case": "One deterministic adaptation case from each structurally valid trajectory JSON file containing at least two symbolic operations.",
     "executed_case": "An eligible case for which parsing and pre-evaluation application are supported and the evaluator, simulator, rebuild, and final comparison complete.",
     "inverse_insertion_case": "An executed case with at least one operation in changes['inverse_ops_added'].",
     "removal_case": "An executed case with at least one operation in changes['operations_removed'].",
@@ -22,7 +22,7 @@
     "residual_patch_cases": 52,
     "target_preserved_cases": 52
   },
-  "evidence_scope": "official_evaluator_full_release_and_deterministic_fixture",
+  "evidence_scope": "official_evaluator_one_case_per_release_trajectory_and_fixture",
   "input_path": "external/NAPE/data/trajectories/*.json",
   "orchestrator_trace": {
     "decisions": [
@@ -73,6 +73,7 @@
     },
     "verdict": "verified"
   },
+  "release_case_scope": "One deterministic adaptation case per each of the 52 released trajectories; this is not a full per-action model rollout.",
   "release_sweep": {
     "case_counts": {
       "eligible_cases": 52,
@@ -82,7 +83,7 @@
     },
     "counting_definitions": {
       "deterministic_mutation": "After operation 0, predict the exact operation 1 followed by VALUE on the first operation's sheet at ZZ999 with value 987654321.",
-      "eligible_case": "One structurally valid trajectory JSON file containing at least two symbolic operations.",
+      "eligible_case": "One deterministic adaptation case from each structurally valid trajectory JSON file containing at least two symbolic operations.",
       "executed_case": "An eligible case for which parsing and pre-evaluation application are supported and the evaluator, simulator, rebuild, and final comparison complete.",
       "inverse_insertion_case": "An executed case with at least one operation in changes['inverse_ops_added'].",
       "removal_case": "An executed case with at least one operation in changes['operations_removed'].",
@@ -514,5 +515,6 @@
     "target_preserved": true
   },
   "source_revision": "ac0d10e4dc345f982a5665a2c4bdb6b752d663f2",
-  "verdict": "reproduced"
+  "verdict": "reproduced",
+  "verified_input_root": "external/NAPE"
 }

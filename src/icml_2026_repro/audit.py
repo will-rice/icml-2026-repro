@@ -148,8 +148,8 @@ def read_git_trajectory_status(repository_path: Path) -> str:
     return result.stdout.strip()
 
 
-def build_claim_1_evidence() -> dict[str, object]:
-    """Build pinned, cross-checked evidence for Claim 1."""
+def build_challenge_card_claim_1_audit() -> dict[str, object]:
+    """Audit the legacy challenge-card Claim 1 wording against two releases."""
     nape_path = REPOSITORY_ROOT / "external" / "NAPE"
     github_head = read_git_head(nape_path)
     if github_head != GITHUB_REVISION:
