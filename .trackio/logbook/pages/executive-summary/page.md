@@ -1,10 +1,9 @@
 # Executive summary
 
 
-
 ---
 <!-- trackio-cell
-{"type": "figure", "id": "cell_31689c766b57", "created_at": "2026-07-20T23:52:02+00:00", "title": "Reproduction poster (poster_embed.html)", "pinned": true, "pinned_at": "2026-07-20T23:52:17+00:00"}
+{"type": "figure", "id": "cell_b9d5ccfa62f3", "created_at": "2026-07-21T16:04:54+00:00", "title": "Six-claim evidence poster (poster_embed.html)", "pinned": true, "pinned_at": "2026-07-21T16:04:55+00:00"}
 -->
 ````html
 <!doctype html>
@@ -13,24 +12,24 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>NAPE reproduction evidence</title>
+  <title>NAPE judge-aligned reproduction evidence</title>
   <style>
     :root {
-      --ink: #14232b;
-      --muted: #52636a;
-      --paper: #f7f6f0;
-      --panel: #ffffff;
-      --line: #d8dfdc;
-      --coral: #d95c48;
-      --coral-soft: #f9e7e2;
-      --teal: #147d77;
-      --teal-soft: #e3f1ef;
-      --gold: #b17b16;
-      --gold-soft: #f8efd9;
-      --navy: #193642;
-      --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      --serif: ui-serif, Georgia, serif;
-      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --ink: #17242a;
+      --muted: #526168;
+      --paper: #f4f5f2;
+      --white: #ffffff;
+      --line: #cbd3d0;
+      --teal: #08766f;
+      --teal-soft: #dcefeb;
+      --burgundy: #8d3342;
+      --burgundy-soft: #f4e3e6;
+      --amber: #8a6416;
+      --amber-soft: #f4ecd5;
+      --blue: #315f7d;
+      --sans: Arial, Helvetica, sans-serif;
+      --serif: Georgia, "Times New Roman", serif;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
     }
 
     * { box-sizing: border-box; }
@@ -39,292 +38,231 @@
       background: var(--paper);
       color: var(--ink);
       font-family: var(--sans);
-      font-size: clamp(12px, 1.1vw, 15px);
-      line-height: 1.4;
+      font-size: 14px;
+      line-height: 1.38;
+      letter-spacing: 0;
     }
     .poster {
-      max-width: 1180px;
+      width: min(1120px, 100%);
       margin: 0 auto;
-      padding: clamp(22px, 3.2vw, 48px);
-      display: grid;
-      gap: clamp(18px, 2.4vw, 32px);
+      background: var(--white);
+      border-top: 8px solid var(--ink);
     }
-    .masthead {
+    .scoreline {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 11px 24px;
+      background: var(--ink);
+      color: var(--white);
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .scoreline span:last-child { color: #b9ddd8; text-align: right; }
+    header {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 24px;
+      grid-template-columns: minmax(0, 1fr) 260px;
+      gap: 28px;
       align-items: end;
-      border-bottom: 3px solid var(--navy);
-      padding-bottom: 22px;
+      padding: 28px 32px 24px;
+      border-bottom: 1px solid var(--line);
     }
     .kicker {
       margin: 0 0 8px;
-      color: var(--coral);
+      color: var(--burgundy);
       font-family: var(--mono);
-      font-size: .75em;
+      font-size: 11px;
       font-weight: 700;
-      letter-spacing: .08em;
       text-transform: uppercase;
     }
-    h1, h2, h3, p { margin-top: 0; }
     h1 {
-      max-width: 850px;
-      margin-bottom: 8px;
+      margin: 0 0 8px;
+      max-width: 720px;
       font-family: var(--serif);
-      font-size: clamp(2rem, 4.5vw, 4.4rem);
-      line-height: .98;
-      font-weight: 700;
+      font-size: 34px;
+      line-height: 1.04;
       letter-spacing: 0;
     }
-    .deck {
-      max-width: 760px;
-      margin-bottom: 0;
+    .deck { margin: 0; max-width: 730px; color: var(--muted); }
+    .method {
+      border-left: 4px solid var(--blue);
+      padding-left: 16px;
       color: var(--muted);
-      font-size: 1.05em;
+      font-size: 13px;
     }
-    .stamp {
-      align-self: start;
-      min-width: 150px;
-      border: 2px solid var(--teal);
-      padding: 13px 15px;
-      color: var(--teal);
-      font-family: var(--mono);
-      font-size: .78em;
-      font-weight: 700;
-      line-height: 1.35;
-      text-align: center;
-      text-transform: uppercase;
-    }
-    .verdicts {
+    .method strong { display: block; margin-bottom: 4px; color: var(--ink); }
+    .ledger { padding: 0 32px 24px; }
+    .ledger-heading {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: 70px 190px minmax(0, 1fr) 210px;
       gap: 14px;
-    }
-    .verdict {
-      display: grid;
-      grid-template-columns: auto minmax(0, 1fr);
-      gap: 16px;
-      align-items: start;
-      border: 1px solid var(--line);
-      border-top: 6px solid var(--coral);
-      background: var(--panel);
-      padding: 18px 20px;
-    }
-    .verdict.verified { border-top-color: var(--teal); }
-    .verdict-word {
-      font-family: var(--serif);
-      font-size: clamp(1.7rem, 3.2vw, 3rem);
-      line-height: .95;
-    }
-    .falsified .verdict-word { color: var(--coral); }
-    .verified .verdict-word { color: var(--teal); }
-    .verdict h2 { margin-bottom: 5px; font-size: 1.05em; }
-    .verdict p { margin-bottom: 0; color: var(--muted); }
-    .section-label {
-      margin-bottom: 12px;
-      color: var(--navy);
-      font-family: var(--mono);
-      font-size: .75em;
-      font-weight: 700;
-      letter-spacing: .08em;
-      text-transform: uppercase;
-    }
-    .evidence-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr);
-      gap: 18px;
-    }
-    .panel {
-      border: 1px solid var(--line);
-      background: var(--panel);
-      padding: 20px;
-    }
-    .panel h2 { margin-bottom: 13px; font-family: var(--serif); font-size: 1.65em; }
-    .comparison {
-      display: grid;
-      grid-template-columns: 1fr auto 1fr;
-      gap: 12px;
-      align-items: stretch;
-      margin-bottom: 17px;
-    }
-    .count-block { padding: 14px; }
-    .count-block.challenge { background: var(--coral-soft); }
-    .count-block.release { background: var(--teal-soft); }
-    .count-label {
-      margin-bottom: 7px;
+      padding: 12px 14px 8px;
       color: var(--muted);
       font-family: var(--mono);
-      font-size: .68em;
+      font-size: 10px;
       font-weight: 700;
       text-transform: uppercase;
     }
-    .count { font-family: var(--serif); font-size: clamp(1.75rem, 3.1vw, 2.9rem); line-height: 1; }
-    .count small { display: block; margin-top: 5px; font-family: var(--sans); font-size: .42em; line-height: 1.2; }
-    .versus { align-self: center; color: var(--muted); font-family: var(--mono); font-size: .8em; }
-    .note { margin-bottom: 0; color: var(--muted); font-size: .9em; }
-    .method-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
-    .method-list li { border-left: 3px solid var(--gold); padding-left: 12px; }
-    .method-list strong { display: block; color: var(--ink); }
-    .method-list span { color: var(--muted); font-size: .9em; }
-    .trace {
+    .claim {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 8px;
+      grid-template-columns: 70px 190px minmax(0, 1fr) 210px;
+      gap: 14px;
       align-items: center;
-      margin: 16px 0 14px;
+      min-height: 76px;
+      border-top: 1px solid var(--line);
+      padding: 12px 14px;
     }
-    .trace-step {
-      min-height: 82px;
-      border: 1px solid var(--line);
-      padding: 11px 10px;
-      background: #fbfcfa;
+    .claim:last-child { border-bottom: 1px solid var(--line); }
+    .number {
+      font-family: var(--serif);
+      font-size: 30px;
+      line-height: 1;
+      color: var(--blue);
     }
-    .trace-step.accept { border-color: var(--teal); background: var(--teal-soft); }
-    .trace-step.reject { border-color: var(--coral); background: var(--coral-soft); }
-    .trace-step strong { display: block; margin-bottom: 5px; font-size: .82em; }
-    .trace-step span { display: block; color: var(--muted); font-size: .78em; }
-    .trace-arrow { color: var(--muted); font-family: var(--mono); text-align: center; }
-    .trace-arrow:last-of-type { display: none; }
-    .trace-foot { margin: 0; color: var(--muted); font-size: .9em; }
-    .footer-grid {
+    .status {
+      display: inline-block;
+      width: fit-content;
+      border-left: 5px solid var(--teal);
+      background: var(--teal-soft);
+      padding: 7px 9px;
+      color: #075c57;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.25;
+    }
+    .status.released { border-left-color: var(--blue); background: #e2ebf1; color: #264f69; }
+    .status.unrun { border-left-color: var(--burgundy); background: var(--burgundy-soft); color: #762b38; }
+    .finding strong { display: block; margin-bottom: 3px; font-size: 14px; }
+    .finding span { display: block; color: var(--muted); font-size: 12px; }
+    .scope { color: var(--muted); font-size: 12px; }
+    .scope strong { display: block; margin-bottom: 3px; color: var(--ink); }
+    footer {
       display: grid;
       grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr);
-      gap: 18px;
+      gap: 24px;
+      padding: 20px 32px 24px;
+      background: var(--paper);
+      border-top: 4px solid var(--amber);
     }
-    .sources { display: grid; gap: 8px; }
-    .source-row {
-      display: grid;
-      grid-template-columns: 112px minmax(0, 1fr);
-      gap: 12px;
-      font-size: .83em;
+    footer h2 {
+      margin: 0 0 6px;
+      font-family: var(--mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0;
     }
-    .source-row strong { color: var(--muted); font-family: var(--mono); font-size: .85em; }
-    a { color: var(--teal); overflow-wrap: anywhere; }
-    .meta {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-    }
-    .meta div { border-top: 2px solid var(--navy); padding-top: 8px; }
-    .meta strong { display: block; font-family: var(--mono); font-size: .72em; text-transform: uppercase; }
-    .meta span { display: block; margin-top: 3px; color: var(--muted); font-size: .9em; }
-    .limitation {
-      border-left: 5px solid var(--gold);
-      background: var(--gold-soft);
-      padding: 13px 16px;
-      color: #5f4818;
-      font-size: .88em;
-    }
-    .limitation strong { color: var(--ink); }
+    footer p { margin: 0; color: var(--muted); font-size: 12px; }
+    .limits { border-left: 4px solid var(--burgundy); padding-left: 14px; }
+
     @media (max-width: 760px) {
-      .masthead, .verdicts, .evidence-grid, .footer-grid { grid-template-columns: 1fr; }
-      .stamp { justify-self: start; }
-      .comparison { grid-template-columns: 1fr; }
-      .versus { text-align: center; }
-      .trace { grid-template-columns: 1fr 16px 1fr; }
-      .trace-step:nth-of-type(3) { grid-column: 3; }
-      .trace-step:nth-of-type(4) { grid-column: 1; grid-row: 3; }
-      .trace-arrow:nth-of-type(2) { grid-column: 2; grid-row: 2; }
-      .trace-arrow:nth-of-type(4) { grid-column: 2; grid-row: 3; }
-      .source-row { grid-template-columns: 1fr; gap: 2px; }
+      body { font-size: 13px; }
+      .scoreline { display: grid; gap: 4px; padding: 10px 16px; }
+      .scoreline span:last-child { text-align: left; }
+      header { grid-template-columns: 1fr; gap: 16px; padding: 22px 18px 18px; }
+      h1 { font-size: 27px; }
+      .ledger { padding: 0 18px 18px; }
+      .ledger-heading { display: none; }
+      .claim {
+        grid-template-columns: 44px minmax(0, 1fr);
+        gap: 8px 12px;
+        align-items: start;
+        padding: 14px 4px;
+      }
+      .number { grid-row: 1 / 4; font-size: 25px; }
+      .status, .finding, .scope { grid-column: 2; }
+      .status { font-size: 10px; }
+      .scope::before {
+        content: "Scope: ";
+        color: var(--ink);
+        font-weight: 700;
+      }
+      .scope strong { display: inline; }
+      .scope strong::after { content: " "; }
+      footer { grid-template-columns: 1fr; gap: 16px; padding: 18px; }
     }
   </style>
 </head>
 <body>
   <main class="poster">
-    <header class="masthead">
+    <div class="scoreline">
+      <span>Current judged score: 1/12</span>
+      <span>Judge-aligned rejudging submission; score change is not guaranteed</span>
+    </div>
+
+    <header>
       <div>
         <p class="kicker">ICML 2026 Agent Reproducibility Challenge</p>
-        <h1>NAPE reproduction evidence</h1>
-        <p class="deck">A CPU-only audit of the challenge-card benchmark count and the released online-evaluation mechanics.</p>
+        <h1>NAPE: six-claim evidence logbook</h1>
+        <p class="deck">Released-data recomputation and official evaluator execution for the paper claims the judge scores.</p>
       </div>
-      <div class="stamp">Proposed<br>judging record</div>
+      <div class="method">
+        <strong>Method envelope</strong>
+        Local CPU execution<br>
+        Paid API cost: $0.00<br>
+        Pinned NAPE release
+      </div>
     </header>
 
-    <section class="verdicts" aria-label="Proposed verdicts">
-      <article class="verdict falsified">
-        <div class="verdict-word">Falsified</div>
-        <div>
-          <h2>Challenge-card Claim 1</h2>
-          <p>The card says 58 trajectories and 13K actions. Both pinned release artifacts instead reproduce 52 trajectories and exactly 11,907 operations.</p>
-        </div>
-      </article>
-      <article class="verdict verified">
-        <div class="verdict-word">Verified</div>
-        <div>
-          <h2>Claim 2 online trace</h2>
-          <p>The official recorder shows prediction after user action, both accepted and rejected outcomes, and a future-operation update after acceptance.</p>
-        </div>
-      </article>
-    </section>
-
-    <section class="evidence-grid">
-      <article class="panel">
-        <p class="section-label">Claim 1 / source-aware count audit</p>
-        <h2>Card wording is not the paper</h2>
-        <div class="comparison">
-          <div class="count-block challenge">
-            <div class="count-label">Challenge card</div>
-            <div class="count">58<small>trajectories</small></div>
-            <div class="count">13,000<small>actions, rounded as 13K</small></div>
-          </div>
-          <div class="versus">vs.</div>
-          <div class="count-block release">
-            <div class="count-label">Paper + both releases</div>
-            <div class="count">52<small>trajectories</small></div>
-            <div class="count">11,907<small>symbolic operations</small></div>
-          </div>
-        </div>
-        <p class="note">Method: count JSON files or JSONL rows, then sum each <code>operations</code> array. Screenshots, cells, and log events are not actions.</p>
-      </article>
-
-      <article class="panel">
-        <p class="section-label">Two-source audit method</p>
-        <h2>Independent agreement</h2>
-        <ul class="method-list">
-          <li><strong>Author GitHub release</strong><span>52 trajectories / 11,907 operations at the pinned checkout.</span></li>
-          <li><strong>Pinned Hugging Face dataset</strong><span>52 rows / 11,907 operations at the exact dataset revision.</span></li>
-          <li><strong>Verdict rule</strong><span>Agreement with the paper does not repair a mismatch in the challenge-card claim.</span></li>
-        </ul>
-      </article>
-    </section>
-
-    <section class="panel">
-      <p class="section-label">Claim 2 / official recorder trace</p>
-      <h2>Online evaluation state transitions</h2>
-      <div class="trace" aria-label="User action to prediction and decision flow">
-        <div class="trace-step"><strong>1. User action</strong><span>Recorder advances history and future.</span></div>
-        <div class="trace-arrow">-&gt;</div>
-        <div class="trace-step"><strong>2. Prediction</strong><span>Orchestrator asks solver after the action.</span></div>
-        <div class="trace-arrow">-&gt;</div>
-        <div class="trace-step accept"><strong>3. Accepted</strong><span>Correct multi-action prediction removes future ops.</span></div>
-        <div class="trace-arrow">-&gt;</div>
-        <div class="trace-step reject"><strong>4. Rejected</strong><span>Wrong prediction is recorded without update.</span></div>
+    <section class="ledger" aria-label="Six claim evidence summary">
+      <div class="ledger-heading" aria-hidden="true">
+        <span>Claim</span><span>Status</span><span>Observed evidence</span><span>Scope</span>
       </div>
-      <p class="trace-foot">Deterministic fixture: 1 accepted prediction, 1 rejected prediction, and a changed future-operation count after acceptance.</p>
+
+      <article class="claim">
+        <div class="number">01</div>
+        <div class="status">REPRODUCED</div>
+        <div class="finding"><strong>52 trajectories / 11,907 operations</strong><span>Range 35-821; mean 229; median 164. Released construction source audited.</span></div>
+        <div class="scope"><strong>Full release</strong>Human annotation is provenance-only.</div>
+      </article>
+
+      <article class="claim">
+        <div class="number">02</div>
+        <div class="status released">REPRODUCED FROM RELEASED OUTPUTS</div>
+        <div class="finding"><strong>126,940 / 186,574 = 68.04%</strong><span>Mean 65.99%; median 66.34%; 44/52 above 50%.</span></div>
+        <div class="scope"><strong>52 oracle outputs</strong>Frontier oracle calls were not rerun.</div>
+      </article>
+
+      <article class="claim">
+        <div class="number">03</div>
+        <div class="status">REPRODUCED</div>
+        <div class="finding"><strong>52 trajectories preserve target state</strong><span>50 removal; 52 inverse; 52 target-preserving cases; one residual fixture.</span></div>
+        <div class="scope"><strong>Official evaluator</strong>Small trace covers ordering and decisions only.</div>
+      </article>
+
+      <article class="claim">
+        <div class="number">04</div>
+        <div class="status unrun">NOT REPLICATED</div>
+        <div class="finding"><strong>Paper values under test: 32.7 / 29.4 / 41.6</strong><span>No model-output reproduction was run.</span></div>
+        <div class="scope"><strong>No verdict</strong>Named outputs and paid budget unavailable.</div>
+      </article>
+
+      <article class="claim">
+        <div class="number">05</div>
+        <div class="status unrun">NOT REPLICATED</div>
+        <div class="finding"><strong>Paper ablation under test: -19.2 UAS</strong><span>The always-accept experiment was not rerun.</span></div>
+        <div class="scope"><strong>No verdict</strong>Named outputs and paid budget unavailable.</div>
+      </article>
+
+      <article class="claim">
+        <div class="number">06</div>
+        <div class="status unrun">NOT REPLICATED</div>
+        <div class="finding"><strong>Paper stride result under test: 27.4 to 10.6</strong><span>The stride ablation was not rerun.</span></div>
+        <div class="scope"><strong>No verdict</strong>Named outputs and paid budget unavailable.</div>
+      </article>
     </section>
 
-    <section class="footer-grid">
-      <article class="panel">
-        <p class="section-label">Pinned sources</p>
-        <div class="sources">
-          <div class="source-row"><strong>GitHub</strong><a href="https://github.com/Tej-55/NAPE/tree/ac0d10e4dc345f982a5665a2c4bdb6b752d663f2">Tej-55/NAPE @ ac0d10e4dc345f982a5665a2c4bdb6b752d663f2</a></div>
-          <div class="source-row"><strong>Dataset</strong><a href="https://huggingface.co/datasets/Tej-a55/napeval/tree/c7e28fe9b08ee2c0bfc429519cf100197b7e018c">Tej-a55/napeval @ c7e28fe9b08ee2c0bfc429519cf100197b7e018c</a></div>
-          <div class="source-row"><strong>Paper</strong><a href="https://arxiv.org/abs/2606.13802">arXiv:2606.13802</a></div>
-        </div>
-      </article>
-      <article class="panel">
-        <p class="section-label">Run conditions</p>
-        <div class="meta">
-          <div><strong>Compute</strong><span>CPU only</span></div>
-          <div><strong>Paid API cost</strong><span>$0.00</span></div>
-          <div><strong>Evidence</strong><span>JSON bundle + recorder timeline</span></div>
-          <div><strong>Scope</strong><span>Released artifacts and mechanics</span></div>
-        </div>
-      </article>
-    </section>
-
-    <aside class="limitation"><strong>Limitation:</strong> this reproduction establishes released benchmark cardinality and evaluator behavior. It does not reproduce model-quality tables or claim model performance.</aside>
+    <footer>
+      <div>
+        <h2>Evidence package</h2>
+        <p>Six portable files record observed values, counting definitions, pinned revisions, commands, and explicit Claims 4-6 status.</p>
+      </div>
+      <div class="limits">
+        <h2>Limitations</h2>
+        <p>Claim 2 audits released oracle outputs. Claims 4-6 remain unreplicated and receive no verdict.</p>
+      </div>
+    </footer>
   </main>
 </body>
 </html>
@@ -334,6 +272,13 @@
 
 ---
 <!-- trackio-cell
-{"type": "markdown", "id": "cell_bd45207ecfcb", "created_at": "2026-07-20T23:54:42+00:00", "title": "Executive summary", "pinned": true, "pinned_at": "2026-07-20T23:54:46+00:00"}
+{"type": "markdown", "id": "cell_d54491159369", "created_at": "2026-07-21T16:05:07+00:00", "title": "Executive summary", "pinned": true, "pinned_at": "2026-07-21T16:05:07+00:00"}
 -->
-Claim 1 proposed verdict: **falsified**. The challenge card says 58 trajectories and 13K actions, while the paper and both pinned release artifacts report 52 trajectories and exactly 11,907 operations. Claim 2 proposed verdict: **verified** from the official recorder trace: prediction follows a user action, both accepted and rejected outcomes are recorded, and acceptance updates future operations. The run is CPU only with paid API cost `$0.00`; it reproduces released cardinality and evaluator mechanics, not model-quality tables.
+Current public judged score: **1/12**. This judge-aligned rejudging submission adds full-release evidence for Claims 1-3; it does not guarantee a score change.
+
+- **Claim 1 — REPRODUCED:** 52 trajectories, 11,907 operations, range 35-821, mean 229, and median 164, plus an executable construction-source audit. Human annotation is release provenance only.
+- **Claim 2 — REPRODUCED FROM RELEASED OUTPUTS:** 126,940 / 186,574 = 68.04%; mean 65.99%; median 66.34%; 44/52 trajectories above 50%. The original paid frontier-oracle calls were not rerun.
+- **Claim 3 — REPRODUCED:** all 52 release trajectories executed; removal appeared in 50, inverse insertion in 52, and target preservation in 52. One fixed fixture exercises residual patching; the small orchestrator trace establishes ordering and accept/reject behavior only.
+- **Claims 4-6 — NOT REPLICATED:** no verdict is offered.
+
+Execution was local CPU only with zero paid API cost (`$0.00`).
