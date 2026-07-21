@@ -1,25 +1,30 @@
 # NAPE ICML 2026 Reproduction
 
-This repository audits two claims presented by the ICML 2026 Agent
+This repository audits the first three claims presented by the ICML 2026 Agent
 Reproducibility Challenge for [A Benchmark and Framework for Evaluating Next
 Action Predictions in Spreadsheets](https://arxiv.org/abs/2606.13802). It
-packages portable evidence and reruns the official online evaluator without
-paid model inference.
+packages portable evidence from the pinned NAPE release and official evaluator
+without paid model inference.
 
 ## Results
 
-- **Challenge-card Claim 1: falsified.** The challenge card says 58 trajectories
-  and 13K actions. The paper itself reports 52 trajectories and 11,907
-  steps/operations, summarized as approximately 12K in its abstract. Both
-  pinned release artifacts agree with the paper, so this audit corroborates the
-  paper and falsifies the challenge-card wording.
-- **Claim 2: verified.** The official online orchestrator predicts after user
-  actions, records accepted and rejected predictions, and updates future
-  operations after an accepted prediction.
+- **Claim 1: reproduced.** The release contains 52 trajectories and 11,907
+  operations, with sequence lengths of 35-821, a paper-rounded mean of 229,
+  and a median of 164. The audit also verifies the corresponding raw artifacts
+  and released construction-pipeline source.
+- **Claim 2: reproduced from released outputs.** Auditing the 52 released oracle
+  outputs gives 68.04% weighted property coverage. The original paid
+  frontier-model oracle calls were not rerun.
+- **Claim 3: reproduced.** Across 52 executed release cases, the official
+  evaluator removes satisfied future operations in 50/52 cases, inserts inverse
+  operations in 52/52 cases, and preserves the target in 52/52 cases. One
+  residual fixture separately exercises residual correction and preserves its
+  target.
 
-These results reproduce released benchmark cardinality and evaluator behavior.
-They do not benchmark model quality or reproduce model-quality tables. The
-run is CPU-only and uses no paid API calls; paid API cost is `$0.00`.
+Claims 4-6 were not replicated because named model outputs and paid API budget
+were not available. These results do not benchmark model quality or reproduce
+model-quality tables. The run is CPU-only and uses no paid API calls; paid API
+cost is `$0.00`.
 
 ## Prerequisites
 
@@ -36,22 +41,27 @@ uv sync
 
 ## Reproduce
 
-Generate the four-file evidence bundle with:
+Generate the six-artifact evidence bundle with:
 
 ```bash
 uv run nape-repro
 ```
 
-The command writes `repro_bundle/claim_1_audit.json`,
-`repro_bundle/claim_2_trace.json`, `repro_bundle/environment.json`, and
-`repro_bundle/README.md`. The bundle contains no credentials, access tokens, or
-machine-specific absolute paths.
+The command writes Claim 1 benchmark evidence, Claim 2 predictability evidence,
+Claim 3 future-adaptation evidence, explicit Claims 4-6 status, an environment
+manifest, and an artifact guide under `repro_bundle/`. The bundle contains no
+credentials, access tokens, or machine-specific absolute paths.
 
-Run the focused package tests, the full root suite, and the official upstream
-tests with:
+Run the focused evidence and CLI tests with:
 
 ```bash
 uv run pytest tests/test_cli.py -q
+uv run pytest tests/test_benchmark_evidence.py tests/test_predictability_evidence.py tests/test_future_adaptation_evidence.py -q
+```
+
+Run the full root suite and official upstream tests with:
+
+```bash
 uv run pytest -q
 uv run pytest external/NAPE/tests -q
 ```
