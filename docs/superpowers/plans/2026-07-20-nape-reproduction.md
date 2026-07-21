@@ -176,7 +176,7 @@ git commit -m "feat: make released NAPE counts independently auditable"
 
 **Interfaces:**
 - Consumes: `data/test.jsonl` from pinned dataset revision `c7e28fe9b08ee2c0bfc429519cf100197b7e018c`.
-- Produces: `audit_jsonl(path: Path, revision: str) -> ReleaseCounts` and `build_challenge_card_claim_1_audit() -> dict[str, object]`.
+- Produces: `audit_jsonl(path: Path, revision: str) -> ReleaseCounts` and `build_claim_1_evidence() -> dict[str, object]`.
 
 - [ ] **Step 1: Write failing JSONL and verdict tests**
 
@@ -206,7 +206,7 @@ Expected: failure because `audit_jsonl` and claim comparison do not exist.
 
 - [ ] **Step 3: Implement the pinned cross-check**
 
-Add constants for the claimed values, GitHub revision, dataset revision, and repository IDs. `audit_jsonl` must validate each row's schema and that `num_operations == len(operations)`. `build_challenge_card_claim_1_audit` must:
+Add constants for the claimed values, GitHub revision, dataset revision, and repository IDs. `audit_jsonl` must validate each row's schema and that `num_operations == len(operations)`. `build_claim_1_evidence` must:
 
 1. verify the vendored NAPE checkout's `HEAD` equals the pinned GitHub revision;
 2. audit `external/NAPE/data/trajectories`;
@@ -225,7 +225,7 @@ Expected: all tests in `tests/test_audit.py` pass.
 
 - [ ] **Step 5: Run the real pinned audit**
 
-Run: `uv run python -c 'import json; from icml_2026_repro.audit import build_challenge_card_claim_1_audit; print(json.dumps(build_challenge_card_claim_1_audit(), indent=2))'`
+Run: `uv run python -c 'import json; from icml_2026_repro.audit import build_claim_1_evidence; print(json.dumps(build_claim_1_evidence(), indent=2))'`
 
 Expected evidence: GitHub and dataset both report `52` trajectories and `11907` actions; verdict is `falsified`.
 
@@ -325,7 +325,7 @@ git commit -m "feat: demonstrate NAPE online evaluation state transitions"
 - Generate: `repro_bundle/README.md`
 
 **Interfaces:**
-- Consumes: `build_challenge_card_claim_1_audit()` and `build_claim_2_evidence(output_dir)`.
+- Consumes: `build_claim_1_evidence()` and `build_claim_2_evidence(output_dir)`.
 - Produces: `build_bundle(output_dir: Path = Path("repro_bundle")) -> Path` and console command `nape-repro`.
 
 - [ ] **Step 1: Write a failing bundle test**

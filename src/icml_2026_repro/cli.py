@@ -15,22 +15,15 @@ from icml_2026_repro.audit import (
     DATASET_REVISION,
     GITHUB_REPOSITORY,
     GITHUB_REVISION,
+    build_claim_1_evidence,
 )
-from icml_2026_repro.benchmark_evidence import build_benchmark_evidence
-from icml_2026_repro.future_adaptation_evidence import build_future_adaptation_evidence
-from icml_2026_repro.predictability_evidence import build_predictability_evidence
+from icml_2026_repro.online_trace import build_claim_2_evidence
 
 BUNDLE_ARTIFACT_NAMES = (
-    "claim_1_benchmark.json",
-    "claim_2_predictability.json",
-    "claim_3_future_adaptation.json",
-    "claims_4_6_status.json",
-    "environment.json",
-    "README.md",
-)
-LEGACY_ARTIFACT_NAMES = (
     "claim_1_audit.json",
     "claim_2_trace.json",
+    "environment.json",
+    "README.md",
 )
 STAGING_FILE_PREFIX = ".nape-repro-staging-"
 STAGING_CREATE_ATTEMPTS = 10
@@ -51,19 +44,15 @@ def build_bundle(output_dir: Path = Path("repro_bundle")) -> Path:
     """Build portable JSON evidence and operator documentation."""
     output_directory_fd = _open_output_directory(output_dir)
     try:
-        legacy_artifact_names = _validate_artifact_destinations(output_directory_fd)
-        claim_1 = build_benchmark_evidence()
-        claim_2 = build_predictability_evidence()
-        with TemporaryDirectory(prefix="nape-repro-internal-") as recorder_directory:
-            claim_3 = build_future_adaptation_evidence(Path(recorder_directory))
+        _validate_artifact_destinations(output_directory_fd)
+        claim_1 = build_claim_1_evidence()
+        with TemporaryDirectory(prefix="nape-repro-internal-") as trace_directory:
+            claim_2 = build_claim_2_evidence(Path(trace_directory))
 
-        _write_json(output_directory_fd, "claim_1_benchmark.json", claim_1)
-        _write_json(output_directory_fd, "claim_2_predictability.json", claim_2)
-        _write_json(output_directory_fd, "claim_3_future_adaptation.json", claim_3)
-        _write_json(output_directory_fd, "claims_4_6_status.json", _unreplicated_model_claims())
+        _write_json(output_directory_fd, "claim_1_audit.json", claim_1)
+        _write_json(output_directory_fd, "claim_2_trace.json", claim_2)
         _write_json(output_directory_fd, "environment.json", _environment_manifest())
         _write_artifact(output_directory_fd, "README.md", _bundle_readme())
-        _remove_legacy_artifacts(output_directory_fd, legacy_artifact_names)
     finally:
         os.close(output_directory_fd)
     return output_dir
@@ -189,22 +178,9 @@ def _open_output_directory_component(
         ) from error
 
 
-def _validate_artifact_destinations(output_directory_fd: int) -> tuple[str, ...]:
-    """Validate the complete reused-directory inventory before generation."""
-    try:
-        directory_entries = set(os.listdir(output_directory_fd))
-    except OSError as error:
-        raise RuntimeError(
-            f"could not inspect output directory: {error.strerror or error}"
-        ) from error
-
-    expected_entries = set(BUNDLE_ARTIFACT_NAMES) | set(LEGACY_ARTIFACT_NAMES)
-    unexpected_entries = sorted(directory_entries - expected_entries)
-    if unexpected_entries:
-        raise RuntimeError(f"unexpected output directory entry: {unexpected_entries[0]}")
-
-    legacy_artifact_names: list[str] = []
-    for artifact_name in sorted(directory_entries):
+def _validate_artifact_destinations(output_directory_fd: int) -> None:
+    """Reject pre-existing artifact symlinks before evidence generation."""
+    for artifact_name in BUNDLE_ARTIFACT_NAMES:
         try:
             artifact_stat = os.stat(
                 artifact_name,
@@ -217,42 +193,8 @@ def _validate_artifact_destinations(output_directory_fd: int) -> tuple[str, ...]
             raise RuntimeError(
                 f"could not inspect {artifact_name}: {error.strerror or error}"
             ) from error
-        if not stat.S_ISREG(artifact_stat.st_mode):
-            raise RuntimeError(f"{artifact_name} must be a regular file")
-        if artifact_name in LEGACY_ARTIFACT_NAMES:
-            legacy_artifact_names.append(artifact_name)
-    return tuple(legacy_artifact_names)
-
-
-def _remove_legacy_artifacts(
-    output_directory_fd: int, legacy_artifact_names: tuple[str, ...]
-) -> None:
-    """Remove validated legacy files after all replacement artifacts succeed."""
-    for artifact_name in legacy_artifact_names:
-        try:
-            artifact_stat = os.stat(
-                artifact_name,
-                dir_fd=output_directory_fd,
-                follow_symlinks=False,
-            )
-        except FileNotFoundError:
-            continue
-        except OSError as error:
-            raise RuntimeError(
-                f"could not inspect {artifact_name}: {error.strerror or error}"
-            ) from error
-        if not stat.S_ISREG(artifact_stat.st_mode):
-            raise RuntimeError(f"{artifact_name} must be a regular file")
-
-    for artifact_name in legacy_artifact_names:
-        try:
-            os.unlink(artifact_name, dir_fd=output_directory_fd)
-        except FileNotFoundError:
-            continue
-        except OSError as error:
-            raise RuntimeError(
-                f"could not remove legacy artifact {artifact_name}: {error.strerror or error}"
-            ) from error
+        if stat.S_ISLNK(artifact_stat.st_mode):
+            raise RuntimeError(f"{artifact_name} must not be a symlink")
 
 
 def _write_json(output_directory_fd: int, artifact_name: str, value: object) -> None:
@@ -343,11 +285,6 @@ def _environment_manifest() -> dict[str, object]:
             "uv sync",
             "uv run nape-repro",
             "uv run pytest tests/test_cli.py -q",
-            (
-                "uv run pytest tests/test_benchmark_evidence.py "
-                "tests/test_predictability_evidence.py "
-                "tests/test_future_adaptation_evidence.py -q"
-            ),
             "uv run pytest -q",
             "uv run pytest external/NAPE/tests -q",
             "uv run pre-commit run -a",
@@ -371,25 +308,7 @@ def _environment_manifest() -> dict[str, object]:
         },
         "python": platform.python_version(),
         "python_implementation": platform.python_implementation(),
-        "schema": "icml-2026-repro-bundle/v2",
-    }
-
-
-def _unreplicated_model_claims() -> dict[str, dict[str, str]]:
-    """Return explicit status for claims requiring unavailable model outputs."""
-    return {
-        "claim_4": {
-            "status": "not replicated",
-            "reason": "Named model outputs and paid API budget were not available.",
-        },
-        "claim_5": {
-            "status": "not replicated",
-            "reason": "Named model outputs and paid API budget were not available.",
-        },
-        "claim_6": {
-            "status": "not replicated",
-            "reason": "Named model outputs and paid API budget were not available.",
-        },
+        "schema": "icml-2026-repro-bundle/v1",
     }
 
 
@@ -399,33 +318,20 @@ def _bundle_readme() -> str:
 
 This bundle is generated by `uv run nape-repro`.
 
-- `claim_1_benchmark.json` recomputes benchmark counts, sequence-length
-  statistics, and construction-artifact coverage from the pinned NAPE release.
-- `claim_2_predictability.json` audits released oracle outputs and recomputes
-  their aggregate predictability coverage without rerunning paid oracle calls.
-- `claim_3_future_adaptation.json` exercises one deterministic official-evaluator
-  adaptation case per each of the 52 released trajectories and one residual fixture.
-- `claims_4_6_status.json` records why Claims 4-6 were not replicated.
+- `claim_1_audit.json` contains the pinned GitHub and Hugging Face release counts,
+  the challenge-card claim, the paper-reported counts, and the resulting verdict.
+- `claim_2_trace.json` contains the official evaluator's prediction decisions,
+  acceptance outcomes, and future-action counts for the deterministic fixture.
 - `environment.json` records the Python/platform metadata, pinned revisions, and
   exact commands used to rerun the evidence.
 
-Claim 1 reproduces 52 trajectories and 11,907 operations, sequence lengths of
-35-821 operations, a paper-rounded mean of 229, and a median of 164. One
-trajectory is one released JSON file and one operation is one string in its
-`operations` array.
+For Claim 1, a trajectory is one JSON file or JSONL row, and an action is one
+string in that trajectory's `operations` array. The action count is the sum of
+those arrays; it does not count workbook cells, screenshots, or log events.
 
-Claim 2 recomputes 68.04% weighted property coverage from released oracle
-outputs. The original paid frontier-model oracle calls were not rerun.
-
-Claim 3 observes removal in 50/52 executed release cases, inverse insertion in
-52/52 cases, and target preservation in 52/52 cases. Each release case is one
-deterministic adaptation after the first operation, not a full per-action model
-rollout. The release sweep did not exercise residual correction, so one residual
-fixture separately demonstrates that mechanism while preserving the target state.
-
-Claims 4-6 were not replicated because named model outputs and paid API budget
-were not available.
-
-This reproduction makes zero paid API calls. The canonical Space is:
-https://huggingface.co/spaces/wrice/repro-a-benchmark-and-framework-for-evaluating-next-action-predictions-in-spreadsheets
+The challenge card says 58 trajectories and 13K actions.
+The paper reports 52 trajectories and 11,907 steps/operations.
+Its abstract summarizes this as approximately 12K. Both pinned release artifacts
+reproduce those paper-reported counts, so the audit agrees with the paper and
+falsifies the challenge-card wording.
 """

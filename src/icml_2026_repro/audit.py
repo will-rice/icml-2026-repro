@@ -102,27 +102,6 @@ def read_git_head(repository_path: Path) -> str:
     return result.stdout.strip()
 
 
-def read_git_worktree_status(repository_path: Path) -> str:
-    """Read all tracked, staged, and untracked changes in a Git worktree."""
-    try:
-        result = subprocess.run(
-            [
-                "git",
-                "-C",
-                str(repository_path),
-                "status",
-                "--porcelain=v1",
-                "--untracked-files=all",
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-    except (OSError, subprocess.CalledProcessError) as error:
-        raise RuntimeError(f"could not read Git status for {repository_path}: {error}") from error
-    return result.stdout.strip()
-
-
 def read_git_trajectory_status(repository_path: Path) -> str:
     """Read tracked and untracked changes under the trajectory directory."""
     try:
@@ -148,8 +127,8 @@ def read_git_trajectory_status(repository_path: Path) -> str:
     return result.stdout.strip()
 
 
-def build_challenge_card_claim_1_audit() -> dict[str, object]:
-    """Audit the legacy challenge-card Claim 1 wording against two releases."""
+def build_claim_1_evidence() -> dict[str, object]:
+    """Build pinned, cross-checked evidence for Claim 1."""
     nape_path = REPOSITORY_ROOT / "external" / "NAPE"
     github_head = read_git_head(nape_path)
     if github_head != GITHUB_REVISION:

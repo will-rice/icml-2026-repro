@@ -6,7 +6,7 @@ import pytest
 from next_action_pred_eval.evaluation.experiment_recorder import TIMELINE_CONTEXT_SIZE
 
 from icml_2026_repro import online_trace
-from icml_2026_repro.online_trace import GROUND_TRUTH, build_online_trace_evidence
+from icml_2026_repro.online_trace import GROUND_TRUTH, build_claim_2_evidence
 
 EXPECTED_GROUND_TRUTH = [
     "VALUE | Sheet1!A1 | 1",
@@ -18,7 +18,7 @@ EXPECTED_GROUND_TRUTH = [
 
 
 def test_online_trace_covers_prediction_decisions_and_future_update(tmp_path):
-    evidence = build_online_trace_evidence(tmp_path)
+    evidence = build_claim_2_evidence(tmp_path)
     summary = cast(dict[str, object], evidence["summary"])
     decisions = cast(list[dict[str, object]], evidence["decisions"])
 
@@ -31,7 +31,7 @@ def test_online_trace_covers_prediction_decisions_and_future_update(tmp_path):
 
 
 def test_online_trace_uses_exact_fixture_and_multi_action_acceptance(tmp_path):
-    evidence = build_online_trace_evidence(tmp_path)
+    evidence = build_claim_2_evidence(tmp_path)
     decisions = cast(list[dict[str, object]], evidence["decisions"])
     accepted = next(decision for decision in decisions if decision["accepted"] is True)
 
@@ -44,8 +44,8 @@ def test_online_trace_is_idempotent_in_existing_output_directory(tmp_path):
     sentinel = tmp_path / "caller-file.txt"
     sentinel.write_text("preserve me", encoding="utf-8")
 
-    first = build_online_trace_evidence(tmp_path)
-    second = build_online_trace_evidence(tmp_path)
+    first = build_claim_2_evidence(tmp_path)
+    second = build_claim_2_evidence(tmp_path)
     decisions = cast(list[dict[str, object]], second["decisions"])
 
     assert second == first
@@ -54,7 +54,7 @@ def test_online_trace_is_idempotent_in_existing_output_directory(tmp_path):
 
 
 def test_online_trace_future_counts_use_uncapped_timeline_lengths(tmp_path):
-    evidence = build_online_trace_evidence(tmp_path)
+    evidence = build_claim_2_evidence(tmp_path)
     decisions = cast(list[dict[str, object]], evidence["decisions"])
     accepted = next(decision for decision in decisions if decision["accepted"] is True)
 
@@ -77,7 +77,7 @@ def test_online_trace_rejects_symlinked_run_directory_without_touching_target(tm
     (output_dir / online_trace.RUN_DIRECTORY_NAME).symlink_to(target, target_is_directory=True)
 
     with pytest.raises(RuntimeError, match="symlink"):
-        build_online_trace_evidence(output_dir)
+        build_claim_2_evidence(output_dir)
 
     assert target_artifact.read_text(encoding="utf-8") == "caller data\n"
 
@@ -92,7 +92,7 @@ def test_online_trace_rejects_symlinked_output_directory_without_touching_target
     output_dir.symlink_to(target, target_is_directory=True)
 
     with pytest.raises(RuntimeError, match="output directory.*symlink"):
-        build_online_trace_evidence(output_dir)
+        build_claim_2_evidence(output_dir)
 
     assert target_artifact.read_text(encoding="utf-8") == "caller data\n"
 
@@ -101,10 +101,10 @@ def test_online_trace_writes_isolated_logs_for_distinct_output_directories(tmp_p
     first_output = tmp_path / "first"
     second_output = tmp_path / "second"
 
-    build_online_trace_evidence(first_output)
+    build_claim_2_evidence(first_output)
     first_log = first_output / online_trace.RUN_DIRECTORY_NAME / "trajectory.log"
     first_log_before_second_run = first_log.read_text(encoding="utf-8")
-    build_online_trace_evidence(second_output)
+    build_claim_2_evidence(second_output)
     second_log = second_output / online_trace.RUN_DIRECTORY_NAME / "trajectory.log"
 
     assert first_log.exists()
@@ -121,7 +121,7 @@ def test_online_trace_closes_trace_logger_handlers_after_exception(tmp_path, mon
     monkeypatch.setattr(online_trace, "SCRIPTED_RESPONSES", [])
 
     with pytest.raises(RuntimeError, match="responses exhausted"):
-        build_online_trace_evidence(tmp_path)
+        build_claim_2_evidence(tmp_path)
 
     assert logging.getLogger("trajectory.claim-2-fixture").handlers == []
 
@@ -130,7 +130,7 @@ def test_online_trace_rejects_mismatched_nape_revision(tmp_path, monkeypatch):
     monkeypatch.setattr(online_trace, "read_git_head", lambda _: "wrong-revision", raising=False)
 
     with pytest.raises(RuntimeError, match="wrong-revision.*expected"):
-        build_online_trace_evidence(tmp_path)
+        build_claim_2_evidence(tmp_path)
 
 
 def test_read_git_worktree_status_reports_tracked_staged_and_untracked_changes(tmp_path):
@@ -184,7 +184,7 @@ def test_online_trace_rejects_dirty_nape_checkout(tmp_path, monkeypatch):
     )
 
     with pytest.raises(RuntimeError, match=r"dirty.*src/dirty\.py"):
-        build_online_trace_evidence(tmp_path / "output")
+        build_claim_2_evidence(tmp_path / "output")
 
 
 def test_prediction_decision_uses_uncapped_counts_and_validates_recorder_pointers():

@@ -2,6 +2,7 @@
 
 import json
 import logging
+import subprocess
 from pathlib import Path
 from typing import Optional, Union, cast
 
@@ -15,12 +16,7 @@ from next_action_pred_eval.evaluation import (
 )
 from next_action_pred_eval.evaluation.stride import StrideConfig, StrideMode
 
-from icml_2026_repro.audit import (
-    GITHUB_REVISION,
-    REPOSITORY_ROOT,
-    read_git_head,
-    read_git_worktree_status,
-)
+from icml_2026_repro.audit import GITHUB_REVISION, REPOSITORY_ROOT, read_git_head
 
 GROUND_TRUTH = [
     "VALUE | Sheet1!A1 | 1",
@@ -104,6 +100,27 @@ def _require_timeline_int(event: dict[str, object], field: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int):
         raise RuntimeError(f"timeline event has invalid {field}")
     return value
+
+
+def read_git_worktree_status(repository_path: Path) -> str:
+    """Read all tracked, staged, and untracked changes in a Git worktree."""
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repository_path),
+                "status",
+                "--porcelain=v1",
+                "--untracked-files=all",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise RuntimeError(f"could not read Git status for {repository_path}: {error}") from error
+    return result.stdout.strip()
 
 
 def _verify_nape_checkout() -> None:
@@ -215,8 +232,8 @@ def _prediction_decision(
     }
 
 
-def build_online_trace_evidence(output_dir: Path) -> dict[str, object]:
-    """Build evidence for the online evaluation transitions."""
+def build_claim_2_evidence(output_dir: Path) -> dict[str, object]:
+    """Build evidence for the online evaluation transitions in Claim 2."""
     _verify_nape_checkout()
     _close_trace_logger_handlers()
     run_directory = _prepare_run_directory(output_dir)
