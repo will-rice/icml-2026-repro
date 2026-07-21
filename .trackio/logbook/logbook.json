@@ -10,7 +10,7 @@
     "icml2026-repro",
     "paper-NvPgRwURDC"
   ],
-  "updated_at": "2026-07-21T16:29:59+00:00",
+  "updated_at": "2026-07-21T17:56:27+00:00",
   "root": {
     "slug": "index",
     "title": "Reproduction: A Benchmark and Framework for Evaluating Next Action Predictions in Spreadsheets",
@@ -66,6 +66,6 @@
       }
     ]
   },
-  "agent_view_tokens": 3063,
-  "revision": "1784651399130561000"
+  "agent_view_tokens": 5097,
+  "revision": "1784656587094919000"
 }

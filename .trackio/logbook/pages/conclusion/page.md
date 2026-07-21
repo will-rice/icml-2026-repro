@@ -73,7 +73,7 @@ pytest...................................................................Passed
 -->
 **📦 Artifact** `repro-a-benchmark-and-framework-for-evaluating-next-action-predictions-in-spreadsheets/repro-bundle-v2:v1` · dataset
 
-trackio-artifact://repro-a-benchmark-and-framework-for-evaluating-next-action-predictions-in-spreadsheets/repro-bundle-v2:v1
+https://huggingface.co/buckets/wrice/repro-a-benchmark-and-framework-for-evaluating-next-action-predictions-in-spreadsheets-artifacts#repro-a-benchmark-and-framework-for-evaluating-next-action-predictions-in-spreadsheets/repro-bundle-v2:v1
 
 
 ---
