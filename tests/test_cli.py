@@ -19,7 +19,7 @@ def test_build_bundle_writes_portable_evidence_files(tmp_path, monkeypatch):
         "verdict": "verified",
     }
     monkeypatch.setattr(cli, "build_claim_1_evidence", lambda: claim_1)
-    monkeypatch.setattr(cli, "build_claim_2_evidence", lambda output_dir: claim_2)
+    monkeypatch.setattr(cli, "build_online_trace_evidence", lambda output_dir: claim_2)
 
     result = cli.build_bundle(tmp_path)
 
@@ -59,7 +59,7 @@ def test_build_bundle_accepts_raw_macos_temporary_directory_alias(monkeypatch):
         )
         monkeypatch.setattr(
             cli,
-            "build_claim_2_evidence",
+            "build_online_trace_evidence",
             lambda output_dir: {"verdict": "verified"},
         )
 
@@ -85,7 +85,7 @@ def test_build_bundle_rejects_symlinked_output_directory_before_evidence_work(
     )
     monkeypatch.setattr(
         cli,
-        "build_claim_2_evidence",
+        "build_online_trace_evidence",
         lambda output_dir: pytest.fail("claim 2 evidence builder was called"),
     )
 
@@ -110,7 +110,7 @@ def test_build_bundle_rejects_symlinked_output_ancestor_before_evidence_work(tmp
     )
     monkeypatch.setattr(
         cli,
-        "build_claim_2_evidence",
+        "build_online_trace_evidence",
         lambda output_dir: pytest.fail("claim 2 evidence builder was called"),
     )
 
@@ -138,7 +138,7 @@ def test_build_bundle_rejects_user_symlink_named_like_macos_root_alias(
     )
     monkeypatch.setattr(
         cli,
-        "build_claim_2_evidence",
+        "build_online_trace_evidence",
         lambda output_dir: pytest.fail("claim 2 evidence builder was called"),
     )
 
@@ -168,7 +168,7 @@ def test_build_bundle_rejects_symlinked_artifact_before_evidence_work(
     )
     monkeypatch.setattr(
         cli,
-        "build_claim_2_evidence",
+        "build_online_trace_evidence",
         lambda output_dir: pytest.fail("claim 2 evidence builder was called"),
     )
 
@@ -190,7 +190,7 @@ def test_build_bundle_replaces_hard_link_without_changing_external_inode(
     claim_1 = {"verdict": "falsified"}
     claim_2 = {"verdict": "verified"}
     monkeypatch.setattr(cli, "build_claim_1_evidence", lambda: claim_1)
-    monkeypatch.setattr(cli, "build_claim_2_evidence", lambda output_dir: claim_2)
+    monkeypatch.setattr(cli, "build_online_trace_evidence", lambda output_dir: claim_2)
 
     cli.build_bundle(output_dir)
 
@@ -221,7 +221,7 @@ def test_build_bundle_atomically_replaces_artifact_symlink_after_preflight(tmp_p
     monkeypatch.setattr(cli, "build_claim_1_evidence", build_claim_1_with_symlink_swap)
     monkeypatch.setattr(
         cli,
-        "build_claim_2_evidence",
+        "build_online_trace_evidence",
         lambda output_dir: {"verdict": "verified"},
     )
 
@@ -246,7 +246,7 @@ def test_build_bundle_removes_staging_file_after_artifact_failure(
     )
     monkeypatch.setattr(
         cli,
-        "build_claim_2_evidence",
+        "build_online_trace_evidence",
         lambda output_dir: {"verdict": "verified"},
     )
     if failing_operation == "write":

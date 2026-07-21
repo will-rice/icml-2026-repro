@@ -215,8 +215,8 @@ def _prediction_decision(
     }
 
 
-def build_claim_2_evidence(output_dir: Path) -> dict[str, object]:
-    """Build evidence for the online evaluation transitions in Claim 2."""
+def build_online_trace_evidence(output_dir: Path) -> dict[str, object]:
+    """Build evidence for the online evaluation transitions."""
     _verify_nape_checkout()
     _close_trace_logger_handlers()
     run_directory = _prepare_run_directory(output_dir)

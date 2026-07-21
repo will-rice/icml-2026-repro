@@ -7,7 +7,7 @@ from icml_2026_repro.audit import (
     build_claim_1_evidence,
 )
 from icml_2026_repro.cli import build_bundle
-from icml_2026_repro.online_trace import ScriptedSolver, build_claim_2_evidence
+from icml_2026_repro.online_trace import ScriptedSolver, build_online_trace_evidence
 
 __all__ = [
     "ReleaseCounts",
@@ -16,5 +16,5 @@ __all__ = [
     "build_claim_1_evidence",
     "build_bundle",
     "ScriptedSolver",
-    "build_claim_2_evidence",
+    "build_online_trace_evidence",
 ]

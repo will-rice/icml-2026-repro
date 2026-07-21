@@ -17,7 +17,7 @@ from icml_2026_repro.audit import (
     GITHUB_REVISION,
     build_claim_1_evidence,
 )
-from icml_2026_repro.online_trace import build_claim_2_evidence
+from icml_2026_repro.online_trace import build_online_trace_evidence
 
 BUNDLE_ARTIFACT_NAMES = (
     "claim_1_audit.json",
@@ -47,7 +47,7 @@ def build_bundle(output_dir: Path = Path("repro_bundle")) -> Path:
         _validate_artifact_destinations(output_directory_fd)
         claim_1 = build_claim_1_evidence()
         with TemporaryDirectory(prefix="nape-repro-internal-") as trace_directory:
-            claim_2 = build_claim_2_evidence(Path(trace_directory))
+            claim_2 = build_online_trace_evidence(Path(trace_directory))
 
         _write_json(output_directory_fd, "claim_1_audit.json", claim_1)
         _write_json(output_directory_fd, "claim_2_trace.json", claim_2)
