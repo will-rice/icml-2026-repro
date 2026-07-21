@@ -282,7 +282,7 @@ Expected: collection fails with `ModuleNotFoundError: No module named 'icml_2026
 
 - [ ] **Step 3: Implement strict released-output aggregation**
 
-Read sorted direct child directories only. Validate exact keys needed from each JSON object: `trajectory_name: str`, `predictable_count: int`, `final_state_size: int`, `coverage_pct: int | float`, and `predictable_properties: list`. Reject booleans as numeric values, require unique matching IDs, and use `math.isfinite`, `math.isclose(..., abs_tol=1e-2)`, `statistics.mean`, and `statistics.median`.
+Read sorted direct child directories only. Validate exact keys needed from each JSON object: `trajectory_name: str`, `predictable_count: int`, `final_state_size: int`, `coverage_pct: int | float`, and `predictable_properties: dict[str, dict[str, list[str]]]` mapping sheet names to cell addresses to predictable property names. Reject booleans as numeric values, require unique matching IDs, require the nested property-entry total to equal `predictable_count`, and use `math.isfinite`, `math.isclose(..., abs_tol=1e-2)`, `statistics.mean`, and `statistics.median`.
 
 Return the exact report shape:
 
