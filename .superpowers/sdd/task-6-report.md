@@ -4,9 +4,10 @@
 
 `DONE_WITH_CONCERNS`
 
-The local Task 6 logbook is implemented, validator-clean, route-smoked, visually
-checked at desktop and mobile widths, and committed. No `trackio logbook
-publish` command was run.
+The local Task 6 logbook is implemented, structurally validator-clean,
+route-smoked, visually checked at desktop and mobile widths, and committed. No
+explicit `trackio logbook publish` or `trackio logbook sync` command was run,
+but Trackio autosync definitely published partial state during page creation.
 
 ## Commits
 
@@ -56,8 +57,9 @@ Implementation commit output:
   - Replaced the old navigation with Executive summary, Claims 1-6, and
     Conclusion in that order.
 - `.trackio/metadata.json`
-  - Preserved Space, paper, challenge tags, privacy, bucket, and autosync
-    metadata; registered `repro-bundle-v2:v0`.
+  - Preserved Space, paper, challenge tags, privacy, and bucket metadata;
+    registered `repro-bundle-v2:v0`. Follow-up correction leaves autosync
+    disabled.
 - Removed `.trackio/logbook/poster_embed.html` after moving the poster source
   under `assets/`.
 - Removed both obsolete challenge-card claim page directories.
@@ -276,9 +278,13 @@ warning: trackio is older than validate API; using built-in validator.
 Logbook validation passed.
 ```
 
-The validator saw preserved `icml2026-repro` and `paper-NvPgRwURDC` tags,
-Executive summary first, Conclusion last, a pinned summary, pinned poster, and
-the Conclusion artifact cell.
+The fallback validator saw preserved `icml2026-repro` and
+`paper-NvPgRwURDC` tags, Executive summary first, Conclusion last, a pinned
+summary, pinned poster, and the Conclusion artifact cell. This is narrow
+structural coverage; it does not validate claim statistics, prose accuracy,
+route behavior, artifact contents, or poster layout. Those were checked
+separately through manual content inspection, direct HTTP requests, browser
+route assertions, and desktop/mobile poster rendering.
 
 ## Server And HTTP Smoke Evidence
 
@@ -391,6 +397,17 @@ image, or network URL.
 
 ## Final Quality Gate
 
+The repository configuration begins with:
+
+```yaml
+exclude: ^(?:\.trackio/|external/|repro_bundle/|\.superpowers/)
+```
+
+Therefore pre-commit does **not** lint, format, or validate `.trackio/` or this
+report. It remains a required repository gate for the non-excluded source and
+test surface only; the Trackio content is covered by the separate validator,
+HTTP, browser-route, content, and poster checks documented above.
+
 ```bash
 uv run pre-commit run -a
 ```
@@ -420,26 +437,273 @@ output before the implementation commit.
   cell, and Conclusion has three fresh exit-0 command cells plus the v2 artifact.
 - Confirmed both executive cells are pinned in generated cell metadata.
 - Confirmed navigation order matches the requested judge-claim order.
-- Confirmed challenge tags, paper ID, canonical Space ID, artifact bucket,
-  privacy, and autosync metadata remain present.
+- Confirmed challenge tags, paper ID, canonical Space ID, artifact bucket, and
+  privacy metadata remain present. Follow-up correction sets autosync to false.
 - Confirmed old falsified/verified challenge-card prose and old page slugs do
   not remain in rendered content or navigation.
 - Confirmed Claims 4-6 are not inferred from Claims 1-3 and receive no verdict.
 - Confirmed bundle regeneration produced no tracked bundle diff.
-- Confirmed no publication command was run.
+- Confirmed no explicit `publish` or `sync` command was run. Trackio page
+  creation nevertheless published partial state through autosync.
 
 ## Concerns
 
-1. The existing metadata had `autosync: true`. The six initial `trackio logbook
-   page` commands printed `syncing to
-   wrice/repro-a-benchmark-and-framework-for-evaluating-next-action-predictions-in-spreadsheets`
-   and may have synchronized the empty page shells before autosync was disabled
-   for the remaining work. No `publish` command was run, and no corrective sync
-   was attempted because the task explicitly prohibited publication. Autosync
-   was restored to its original value in the committed metadata.
+1. Trackio autosync definitely published partial Task 6 state at remote SHA
+   `7ebb962a43e56b6945e50bc4e7d6fea5d8718df2`. The committed local correction
+   sets `autosync` to `false` and leaves it false. Repairing the canonical
+   remote is a mandatory Task 7 blocker: Task 7 must not proceed to rejudging
+   or completion until the fully validated local logbook replaces that partial
+   remote state and the canonical remote revision/content are verified.
 2. Installed Trackio 0.31.5 lacks the newer validator API, so the official
    script passed through its built-in validator path and emitted that warning.
    It also requires `--space`, while the task brief names unsupported
-   `--space-id`.
-3. The evidence generator emits two deterministic, non-failing large-fingerprint
+   `--space-id`. The fallback checker has narrow structural coverage only.
+3. Pre-commit globally excludes `.trackio/` and `.superpowers/`; its passing
+   output is not evidence that logbook content, routes, poster layout, or this
+   report are correct. Those checks are separate and manual/browser-backed.
+4. The evidence generator emits two deterministic, non-failing large-fingerprint
    performance warnings. They do not affect artifacts or exit status.
+
+## Task 6 Findings Correction
+
+### Scope
+
+The follow-up correction changes:
+
+- `.trackio/metadata.json`: sets `autosync` to `false` and leaves it false.
+- `.trackio/logbook/pages/conclusion/page.md`: adds the exact Claim 1-3
+  statistics and scope requested by review.
+- `.trackio/logbook/logbook.json`: the read-only local server refreshed the
+  generated revision timestamp, agent-view token count, and revision after the
+  direct Conclusion edit. Navigation and challenge metadata are unchanged.
+- `.superpowers/sdd/task-6-report.md`: records definite remote publication,
+  the mandatory Task 7 repair blocker, pre-commit exclusions, validator scope,
+  and the fresh manual/browser evidence below.
+
+No Trackio write command was run during the correction. The only Trackio
+command was the read-only local server command. No `page`, `cell`, `run`,
+`pin`, `sync`, or `publish` subcommand was invoked. The server refreshed the
+local generated manifest but did not sync because autosync was already false.
+
+### Supported Validator
+
+Command:
+
+```bash
+uv run python scripts/validate_icml_logbook.py --space wrice/repro-a-benchmark-and-framework-for-evaluating-next-action-predictions-in-spreadsheets
+```
+
+Exact output:
+
+```text
+warning: trackio is older than validate API; using built-in validator.
+Logbook validation passed.
+```
+
+Interpretation: this is a passing narrow structural check only. It is not the
+evidence for numeric content, route behavior, artifact contents, or poster
+layout.
+
+### Independent Content Audit
+
+A read-only Python audit parsed metadata and the manifest, inspected Conclusion
+and report text, compared the standalone poster source byte-for-byte with the
+pinned figure HTML, rejected scripts/network URLs, and asserted the exact eight
+route slugs. Exact output:
+
+```text
+content audit passed: autosync=false; 8 routes; exact Conclusion statistics; poster source=embed; report corrections present
+```
+
+The Conclusion assertions covered:
+
+```text
+1/12
+52 trajectories; 11,907 operations; 35-821; mean 229; median 164
+126,940 / 186,574 = 68.04%; mean 65.99%; median 66.34%; 44/52
+50/52 removal; 52/52 inverse insertion; 52/52 target preservation
+0/52 release residual patch; 1/1 fixture residual patch; 1/1 fixture target preservation
+zero paid API cost
+Claims 4-6 - NOT REPLICATED
+```
+
+### Local Server And HTTP
+
+The read-only server command was run with committed metadata already set to
+`autosync: false`:
+
+```bash
+uv run trackio logbook serve --no-browser
+```
+
+```text
+* Trackio logbook launched at: http://localhost:7861/
+  Dashboard embedded at: http://localhost:7861/dashboard/
+Press Ctrl+C to stop.
+```
+
+Every requested page/asset returned HTTP 200:
+
+```text
+200 /
+200 /logbook.json
+200 /pages/index.md
+200 /pages/executive-summary/page.md
+200 /pages/claim-1-benchmark-and-construction/page.md
+200 /pages/claim-2-empirical-predictability/page.md
+200 /pages/claim-3-online-future-adaptation/page.md
+200 /pages/claim-4-gpt-5-r-results/page.md
+200 /pages/claim-5-always-accept-ablation/page.md
+200 /pages/claim-6-stride-ablation/page.md
+200 /pages/conclusion/page.md
+200 /assets/poster_embed.html
+200 /logbook.js
+200 /logbook.css
+served Conclusion content audit passed
+```
+
+Server stop output:
+
+```text
+Stopped.
+```
+
+### Manual Browser Route And Content Checks
+
+The in-app Browser Playwright interface loaded every hash route. After the
+application's one-second smooth-scroll settle, every route reported
+`hashOk=true`, `activeOk=true`, and `headingOk=true`:
+
+```text
+executive-summary
+claim-1-benchmark-and-construction
+claim-2-empirical-predictability
+claim-3-online-future-adaptation
+claim-4-gpt-5-r-results
+claim-5-always-accept-ablation
+claim-6-stride-ablation
+conclusion
+```
+
+The rendered Conclusion audit reported:
+
+```text
+allRequiredText: true
+commandCells: 3
+artifactRefs: 2
+```
+
+The required text list included every Claim 1-3 statistic listed in the
+independent content audit, current `1/12`, zero paid API cost, and Claims 4-6
+not replicated. Browser console warnings/errors were:
+
+```text
+[]
+```
+
+### Fresh Poster Checks
+
+Fresh screenshots:
+
+```text
+/private/tmp/task-6-fix-poster-desktop.jpg
+/private/tmp/task-6-fix-poster-mobile.jpg
+```
+
+Desktop geometry:
+
+```text
+viewport: 1440x900
+scroll extent: 1440x900
+claim rows: 6
+out-of-bounds elements: 0
+```
+
+Mobile geometry:
+
+```text
+viewport: 375x844
+scroll extent: 375x1434
+claim rows: 6
+out-of-bounds elements: 0
+status elements with horizontal overflow: 0
+```
+
+Manual inspection found the desktop six-row ledger fully visible and legible.
+The mobile capture wraps the status, evidence, and scope columns into readable
+stacked rows without clipping; the score line, method envelope, and first four
+claim rows are visible in the viewport, with the remaining rows reachable by
+vertical scroll.
+
+### Pre-Commit Source/Test Gate
+
+Command:
+
+```bash
+uv run pre-commit run -a
+```
+
+Exact output:
+
+```text
+check python ast.........................................................Passed
+fix end of files.........................................................Passed
+trim trailing whitespace.................................................Passed
+check for merge conflicts................................................Passed
+fix requirements.txt.................................(no files to check)Skipped
+prettier-format..........................................................Passed
+ruff format..............................................................Passed
+ruff (legacy alias)......................................................Passed
+ty.......................................................................Passed
+pytest...................................................................Passed
+```
+
+Coverage qualification: `.pre-commit-config.yaml` globally excludes
+`.trackio/`, `external/`, `repro_bundle/`, and `.superpowers/`. This passing
+gate covers the configured source/test surface and does not validate any of the
+four correction files.
+
+The final post-report validator/pre-commit/content-audit command exited 0 with:
+
+```text
+warning: trackio is older than validate API; using built-in validator.
+Logbook validation passed.
+check python ast.........................................................Passed
+fix end of files.........................................................Passed
+trim trailing whitespace.................................................Passed
+check for merge conflicts................................................Passed
+fix requirements.txt.................................(no files to check)Skipped
+prettier-format..........................................................Passed
+ruff format..............................................................Passed
+ruff (legacy alias)......................................................Passed
+ty.......................................................................Passed
+pytest...................................................................Passed
+final findings audit passed: autosync=false; Conclusion exact; report blocker/coverage corrections present
+```
+
+### Correction Self-Review
+
+- Confirmed `.trackio/metadata.json` contains `"autosync": false` before and
+  after every local validation step.
+- Confirmed no Trackio write, sync, or publish command ran after setting
+  autosync false.
+- Confirmed Conclusion contains all requested exact totals and preserves the
+  distinction between the `0/52` release residual result and the `1/1` fixed
+  residual fixture.
+- Confirmed Claim 2 remains scoped to released outputs and says the original
+  paid frontier-oracle calls were not rerun.
+- Confirmed Claims 4-6 remain not replicated and receive no verdict.
+- Confirmed the report states definite partial remote publication at SHA
+  `7ebb962a43e56b6945e50bc4e7d6fea5d8718df2`.
+- Confirmed canonical remote repair is a mandatory Task 7 blocker.
+- Confirmed validator, direct content audit, HTTP checks, browser-route checks,
+  rendered Conclusion checks, and desktop/mobile poster checks are reported as
+  separate evidence with their actual coverage.
+- Confirmed the local server and browser session were stopped/finalized.
+
+### Remaining Concern
+
+The canonical remote still contains the partial autosynced state at SHA
+`7ebb962a43e56b6945e50bc4e7d6fea5d8718df2`. This correction intentionally
+does not publish or sync. Task 7 remains blocked on replacing and verifying that
+canonical remote state.
